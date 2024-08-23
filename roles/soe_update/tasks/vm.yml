@@ -1,0 +1,228 @@
+---
+- name: Make sure requirements are met to run vmware modules PyVmoi and PyVim
+  become: true
+  ansible.builtin.pip:
+    name:
+      - PyVmomi
+      - PyVim
+    state: present
+  delegate_to: localhost
+
+
+- name: Clone a virtual machine from Linux SOE  template and customize
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    name: "{{ vm_name }}"
+    template: "{{ template_name }}"
+    folder: "{{ vm_folder }}"
+    state: "poweredon"
+    networks:
+      - name: DSwitch-VM Network 
+        ip:  "{{ ip_address }}"
+        netmask: "{{ ip_netmask }}"
+        gateway:  "{{ ip_gateway }}"
+    wait_for_ip_address: true
+    customization:
+      dns_servers:
+        - dns1
+        - dns2
+  delegate_to: localhost
+
+
+
+- name: Get VM MoID
+  community.vmware.vmware_vm_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    vm_name: "{{ vm_name }}"
+  register: vm_info_result
+  delegate_to: localhost
+
+
+- name: Set VM MoID fact
+  set_fact:
+    vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
+  delegate_to: localhost
+
+#- name: Debug VM MoID
+#  debug:
+#    var: vm_moid
+#  delegate_to: localhost
+
+
+- name: Wait for VMware tools to become available by MoID
+  community.vmware.vmware_guest_tools_wait:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    moid: "{{ vm_moid }}"
+  delegate_to: localhost
+  register: facts
+
+
+- name: Test the Connectivity of the Server to the network
+  ansible.builtin.command: ping -c 4 {{ satellite_url }}
+  ignore_errors: true
+
+- name: Ensure /etc/rhsm directory exists
+  ansible.builtin.file:
+    path: /etc/rhsm
+    state: directory
+
+- name: Copy rhsm.conf.backup to rhsm.conf
+  ansible.builtin.copy:
+    src:  rhsm.j2
+    dest: /etc/rhsm/rhsm.conf
+
+
+
+- name: Gather facts
+  ansible.builtin.setup:
+   filter:
+      - 'ansible_distribution_major_version'
+
+
+
+
+- name: Register with satellite server
+  ansible.builtin.command: >
+    subscription-manager register
+    --org="ITMCO"
+    --activationkey="'cba-nonp-rhel7"   
+    --force
+  when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '7'
+
+- name: Register with satellite server
+  ansible.builtin.command: >
+    subscription-manager register
+    --org="{{ org }}"
+    --activationkey="{{ activationkey }}"
+    --force
+  when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '8'
+
+
+
+
+
+- name: Disable all repos and only re-enable RHEL repos
+  ansible.builtin.shell:
+    cmd: |
+      subscription-manager repos --disable="*"
+      subscription-manager repos --enable="rhel*"
+
+
+
+- name: Run yum update for RHEL 7
+  ansible.builtin.yum:
+    name: '*'
+    state: latest
+  when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '7'
+
+
+- name: Run dnf update for RHEL 8 or 9
+  ansible.builtin.dnf:
+    name: '*'
+    state: latest
+  when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '8' 
+
+
+
+- name: Remove Subscription from the server
+  community.general.redhat_subscription:
+    state: absent
+
+
+
+- name: Delete rhsm.conf.backup
+  ansible.builtin.file:
+    path: /etc/rhsm/rhsm.conf
+    state: absent
+
+
+- name: Create script file to remove network settings
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+      echo "Removing network settings..."
+      sed -i '/^IPADDR=/d' /etc/sysconfig/network-scripts/ifcfg-ens192
+      sed -i '/^NETMASK=/d' /etc/sysconfig/network-scripts/ifcfg-ens192
+      sed -i '/^GATEWAY=/d' /etc/sysconfig/network-scripts/ifcfg-ens192
+      sed -i '/^DNS1=/d' /etc/sysconfig/network-scripts/ifcfg-ens192
+      sed -i '/^DNS2=/d' /etc/sysconfig/network-scripts/ifcfg-ens192
+    dest: /tmp/remove_network_settings.sh
+    mode: u=rwx,g=rx,o=rx
+
+- name: Execute script to remove network settings
+  ansible.builtin.command: /tmp/remove_network_settings.sh
+
+
+- name: Shut down VM
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    folder: "/vm/Template"
+    name: "{{ vm_name }}"
+    datacenter: "{{ datacenter_name }}"
+    state: shutdown-guest
+    state_change_timeout: 120
+  delegate_to: localhost
+  register: shutdown
+  ignore_errors: true  # Ignore errors for this task
+
+
+
+
+- name: Power-off  VM
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    folder: "/vm/Template"
+    name: "{{ vm_name }}"
+    datacenter:  "{{ datacenter_name }}"
+    state: powered-off
+  when: shutdown.failed
+  delegate_to: localhost
+
+- name: Set new template name with date prefix
+  set_fact:
+    new_template_name: "{{ template_name }}-{{ ansible_date_time.date }}"
+    delegate_to: localhost
+   
+- name: Rename Original template
+  vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ template_name }}"
+    new_name: "{{ new_template_name }}"
+  delegate_to: localhost
+
+
+
+- name: Rename template-build to client
+  vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "template-build"
+    new_name: "{{ template_name }}"
+  delegate_to: localhost
+
+
+
+
+
