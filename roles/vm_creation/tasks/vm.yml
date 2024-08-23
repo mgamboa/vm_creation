@@ -7,7 +7,6 @@
     state: present
   delegate_to: localhost
 
-
 - name: Create a virtual machine 
   community.vmware.vmware_guest:
     hostname: "{{ vcenter_hostname }}"
@@ -26,8 +25,6 @@
     wait_for_ip_address: true
   delegate_to: localhost
 
-
-
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
     hostname: "{{ vcenter_hostname }}"
@@ -38,17 +35,10 @@
   register: vm_info_result
   delegate_to: localhost
 
-
 - name: Set VM MoID fact
   set_fact:
     vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
   delegate_to: localhost
-
-#- name: Debug VM MoID
-#  debug:
-#    var: vm_moid
-#  delegate_to: localhost
-
 
 - name: Wait for VMware tools to become available by MoID
   community.vmware.vmware_guest_tools_wait:
@@ -60,6 +50,15 @@
   delegate_to: localhost
   register: facts
 
+- name: Get VM info
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  register: vm_info
 
 - name: Display VM IP address
   debug:
