@@ -60,6 +60,19 @@
   delegate_to: localhost
   register: vm_info
 
+- name: Change root password
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
+  delegate_to: localhost
+
 - name: Display VM IP address
   debug:
     msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ipv4 }}"
