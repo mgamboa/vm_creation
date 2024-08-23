@@ -1,6 +1,5 @@
 ---
 - name: Make sure requirements are met to run vmware modules PyVmoi and PyVim
-  become: true
   ansible.builtin.pip:
     name:
       - PyVmomi
