@@ -1,6 +1,6 @@
 ---
 - name: Install python3-aiohttp
-  ansible.builtin.package:
+  ansible.builtin.dnf:
     name: python3-aiohttp
     state: present
     update_cache: yes
