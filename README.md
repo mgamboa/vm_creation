@@ -33,5 +33,5 @@
 │           └── main.yml
 └── templates
 ``` 
-inside of role directory the structure is create after the role is initialize with the command ansible-galaxy role init <Role Name>
+inside of role directory the structure is create after the role is initialize with the command ansible-galaxy role init Role Name
 
