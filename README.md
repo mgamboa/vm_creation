@@ -2,7 +2,11 @@
 
 • include example of Virtual Machine Creation and remove
 * Include script to create Project Structure as follow
-• this is the structure would be with the script project
+• this is the structure would be with the ansible_project_creation.sh script 
+   use: 
+     ansible_project_creation.sh  <Project_Name>  
+
+this will be create the following structure
 ```  bash
 <Project Name>
 ├── ansible.cfg
@@ -33,5 +37,5 @@
 │           └── main.yml
 └── templates
 ``` 
-inside of role directory the structure is create after the role is initialize with the command ansible-galaxy role init Role Name
+The role directory structure is create after the roles are initialize with the command ansible-galaxy role init Role Name
 
