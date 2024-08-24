@@ -1,0 +1,155 @@
+---
+- name: Make sure requirements are met to run vmware modules PyVmoi and PyVim
+  ansible.builtin.pip:
+    name:
+      - PyVmomi
+      - PyVim
+    state: present
+  delegate_to: localhost
+
+- name: Create a virtual machine 
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    name: "{{ vm_name }}"
+    template: "{{ 'RH8' if version == '8' else 'RH9' }}"
+    folder: "{{ vm_folder }}"
+    state: "poweredon"
+  delegate_to: localhost
+
+- name: Get VM MoID
+  community.vmware.vmware_vm_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    vm_name: "{{ vm_name }}"
+  register: vm_info_result
+  delegate_to: localhost
+
+- name: Set VM MoID fact
+  set_fact:
+    vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
+  delegate_to: localhost
+
+- name: Wait for VMware tools to become available by MoID
+  community.vmware.vmware_guest_tools_wait:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    moid: "{{ vm_moid }}"
+  delegate_to: localhost
+  register: facts
+
+- name: Patching to latest version OS
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    folder: "{{ vm_folder }}"
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'dnf update -y'"
+  delegate_to: localhost
+  when: patch_os | default(false) | bool
+  register: patching_result
+
+- name: Check kernel version
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    folder: "{{ vm_folder }}"
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'uname -r'"
+  delegate_to: localhost
+  register: kernel_version
+  when: patch_os | default(false) | bool
+
+- name: Reboot VM if kernel was updated
+  community.vmware.vmware_guest_powerstate:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+    state: reboot-guest
+  delegate_to: localhost
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Wait for VM power state (powered on)
+  community.vmware.vmware_guest_powerstate:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+    state: powered-on
+  delegate_to: localhost
+  register: vm_power_state
+  until: vm_power_state.instance.hw_power_status == 'poweredOn'
+  retries: 30
+  delay: 10
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Wait for VMware tools to become available
+  community.vmware.vmware_guest_tools_wait:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Wait for VM to get an IP address
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    datacenter: "{{ datacenter_name }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  register: vm_info
+  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+  retries: 10
+  delay: 6
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Display VM IP address
+  debug:
+    msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ipv4 }}"
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+    - vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""

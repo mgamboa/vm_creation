@@ -1,0 +1,10 @@
+---
+- name: Manage VMs
+  hosts: localhost
+  gather_facts: no
+  roles:
+    - role: vm_create
+      when: create_vm | default(false) | bool
+
+    - role: vm_remove
+      when: remove_vm | default(false) | bool

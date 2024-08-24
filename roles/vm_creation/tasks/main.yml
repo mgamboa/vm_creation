@@ -1,7 +1,0 @@
----
-# tasks file for soe_update
-#
-- name: pre-requisites python library aiohttp
-  include_tasks: install_python3_aiohttp.yml
-- name: create vm
-  include_tasks: vm.yml 
