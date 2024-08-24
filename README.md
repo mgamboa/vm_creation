@@ -14,7 +14,7 @@
 │   └── sample_playbook.yml
 ├── requirements.yml
 ├── roles
-│   └── soe
+│   └── <Role Name>
 │       ├── defaults
 │       │   └── main.yml
 │       ├── files
@@ -33,5 +33,5 @@
 │           └── main.yml
 └── templates
 ``` 
-inside of role directory the structure is create after the role is initialize with the command ansible-galaxy role init
+inside of role directory the structure is create after the role is initialize with the command ansible-galaxy role init <Role Name>
 
