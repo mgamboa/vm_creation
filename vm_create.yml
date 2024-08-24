@@ -1,6 +1,10 @@
 ---
-- hosts: all
+- name: Manage VMs
+  hosts: localhost
   gather_facts: no
-  connection: local
   roles:
-    - vm_creation
+    - role: vm_create
+      when: create_vm | default(false) | bool
+
+    - role: vm_remove
+      when: remove_vm | default(false) | bool

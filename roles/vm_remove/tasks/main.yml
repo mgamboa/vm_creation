@@ -1,0 +1,51 @@
+# roles/vm_remove/tasks/main.yml
+
+---
+- name: Make sure requirements are met to run vmware modules PyVmomi and PyVim
+  ansible.builtin.pip:
+    name:
+      - PyVmomi
+      - PyVim
+    state: present
+  delegate_to: localhost
+
+- name: Get VM info
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    datacenter: "{{ datacenter_name }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  register: vm_info
+  ignore_errors: yes
+
+- name: Display VM owner
+  debug:
+    msg: "The owner of {{ vm_name }} is {{ vm_info.instance.customvalues.Owner }}"
+  when: vm_info.instance is defined
+
+- name: Confirm VM removal
+  pause:
+    prompt: "Are you sure you want to remove the VM {{ vm_name }}? This action cannot be undone. (yes/no)"
+  register: confirmation
+  when: vm_info.instance is defined
+
+- name: Remove virtual machine
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+    state: absent
+    force: yes
+  delegate_to: localhost
+  when: 
+    - vm_info.instance is defined
+    - confirmation.user_input | lower == 'yes'
+
+- name: VM removal status
+  debug:
+    msg: "{{ 'VM has been removed successfully.' if (vm_info.instance is defined and confirmation.user_input | lower == 'yes') else 'VM removal was cancelled or VM does not exist.' }}"
