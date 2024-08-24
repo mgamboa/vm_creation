@@ -65,7 +65,53 @@
     vm_shell: /bin/bash
     vm_shell_args: "-c 'dnf update -y'"
   delegate_to: localhost
+  when: patch_os | default(false) | bool
+  register: patching_result
 
+- name: Check kernel version
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    folder: "{{ vm_folder }}"
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'uname -r'"
+  delegate_to: localhost
+  register: kernel_version
+  when: patch_os | default(false) | bool
+
+- name: Reboot VM if kernel was updated
+  community.vmware.vmware_guest_powerstate:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+    state: reboot-guest
+  delegate_to: localhost
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Wait for VM to come back online
+  community.vmware.vmware_guest_tools_wait:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
@@ -89,8 +135,6 @@
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
     validate_certs: no
     name: "{{ vm_name }}"
   delegate_to: localhost
@@ -98,4 +142,4 @@
 
 - name: Display VM IP address
   debug:
-    msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ipv4 }}"
+    msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ip_address }}"
