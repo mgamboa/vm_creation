@@ -1,2 +1,2 @@
-# vm_creation
-vm_creation
+# Ansible Project Example
+* include example of  Virtual Machine Creation and remove
