@@ -82,6 +82,19 @@
   register: kernel_version
   when: patch_os | default(false) | bool
 
+- name: Change root password
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
+  delegate_to: localhost
+  
 - name: Reboot VM if kernel was updated
   community.vmware.vmware_guest_powerstate:
     hostname: "{{ vcenter_hostname }}"
