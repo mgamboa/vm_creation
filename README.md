@@ -1,7 +1,7 @@
 # Ansible Project Example
 
 • include example of Virtual Machine Creation and remove
-
+* Include script to create Project Structure as follow
 • this is the structure would be with the script project
 ```  bash
 <Project Name>
