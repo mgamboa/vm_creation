@@ -1,3 +1,5 @@
+# roles/vm_remove/tasks/main.yml
+
 ---
 - name: Make sure requirements are met to run vmware modules PyVmomi and PyVim
   ansible.builtin.pip:
@@ -24,7 +26,6 @@
     msg: "VM {{ vm_name }} details: {{ vm_info.instance | default('VM not found') }}"
   when: vm_info.instance is defined
 
-
 - name: Remove virtual machine
   community.vmware.vmware_guest:
     hostname: "{{ vcenter_hostname }}"
@@ -37,15 +38,15 @@
   delegate_to: localhost
   when: 
     - vm_info.instance is defined
-    - confirmation.user_input | lower == 'yes'
+    - confirm_removal | bool
 
 - name: VM removal status
   debug:
     msg: >
       {% if vm_info.instance is not defined %}
         VM {{ vm_name }} does not exist.
-      {% elif confirmation.user_input | lower == 'yes' %}
+      {% elif confirm_removal | bool %}
         VM {{ vm_name }} has been removed successfully.
       {% else %}
-        VM removal was cancelled. VM {{ vm_name }} still exists.
+        VM removal was not confirmed. VM {{ vm_name }} still exists.
       {% endif %}
