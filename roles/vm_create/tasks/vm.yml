@@ -125,11 +125,10 @@
     password: "{{ vcenter_password }}"
     validate_certs: no
     name: "{{ vm_name }}"
-    networks:
-      - name: DSwitch-VM Network
-        state: connected
-        start_connected: yes
-        type: dhcp
+    network_name: "DSwitch-VM Network"
+    state: present
+    connected: yes
+    start_connected: yes
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool
