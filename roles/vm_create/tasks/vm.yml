@@ -132,6 +132,8 @@
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
     validate_certs: no
     name: "{{ vm_name }}"
   delegate_to: localhost
