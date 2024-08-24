@@ -19,10 +19,6 @@
     template: "{{ 'RH8' if version == '8' else 'RH9' }}"
     folder: "{{ vm_folder }}"
     state: "poweredon"
-    networks:
-      - name: DSwitch-VM Network 
-        type: dhcp
-    wait_for_ip_address: true
   delegate_to: localhost
 
 - name: Get VM MoID
@@ -118,23 +114,6 @@
     - patching_result.changed
     - kernel_version.changed
 
-- name: Ensure network interface is connected
-  community.vmware.vmware_guest_network:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    name: "{{ vm_name }}"
-    network_name: "DSwitch-VM Network"
-    state: present
-    connected: yes
-    start_connected: yes
-  delegate_to: localhost
-  when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
-
 - name: Wait for VMware tools to become available
   community.vmware.vmware_guest_tools_wait:
     hostname: "{{ vcenter_hostname }}"
@@ -165,31 +144,7 @@
     - patching_result.changed
     - kernel_version.changed
 
-- name: Verify network connectivity
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/ping
-    vm_shell_args: "-c 4 8.8.8.8"
-  delegate_to: localhost
-  register: ping_result
-  when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
 
-- name: Display network connectivity result
-  debug:
-    msg: "Network connectivity test result: {{ ping_result.stdout if ping_result.stdout is defined else 'Failed to perform network test' }}"
-  when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
 
 - name: Display VM IP address
   debug:
