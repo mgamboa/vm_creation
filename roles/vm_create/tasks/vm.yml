@@ -100,7 +100,43 @@
     - patching_result.changed
     - kernel_version.changed
 
-- name: Wait for VM to come back online
+- name: Wait for VM power state (powered on)
+  community.vmware.vmware_guest_powerstate:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+    state: powered-on
+  delegate_to: localhost
+  register: vm_power_state
+  until: vm_power_state.instance.hw_power_status == 'poweredOn'
+  retries: 30
+  delay: 10
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Ensure network interface is connected
+  community.vmware.vmware_guest_network:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+    networks:
+      - name: DSwitch-VM Network
+        state: connected
+        start_connected: yes
+        type: dhcp
+  delegate_to: localhost
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Wait for VMware tools to become available
   community.vmware.vmware_guest_tools_wait:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -113,35 +149,53 @@
     - patching_result.changed
     - kernel_version.changed
 
-- name: Change root password
+- name: Wait for VM to get an IP address
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  register: vm_info
+  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None
+  retries: 30
+  delay: 10
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Verify network connectivity
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
     vm_id: "{{ vm_name }}"
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
+    vm_shell: /bin/ping
+    vm_shell_args: "-c 4 8.8.8.8"
   delegate_to: localhost
+  register: ping_result
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
 
-
-
-- name: Get VM info
-  community.vmware.vmware_guest_info:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    datacenter: "{{ datacenter_name }}"
-    validate_certs: no
-    name: "{{ vm_name }}"
-  delegate_to: localhost
-  register: vm_info
+- name: Display network connectivity result
+  debug:
+    msg: "Network connectivity test result: {{ ping_result.stdout if ping_result.stdout is defined else 'Failed to perform network test' }}"
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
 
 - name: Display VM IP address
   debug:
     msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ipv4 }}"
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
