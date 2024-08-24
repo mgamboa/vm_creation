@@ -24,11 +24,6 @@
     msg: "VM {{ vm_name }} details: {{ vm_info.instance | default('VM not found') }}"
   when: vm_info.instance is defined
 
-- name: Confirm VM removal
-  pause:
-    prompt: "Are you sure you want to remove the VM {{ vm_name }}? This action cannot be undone. (yes/no)"
-  register: confirmation
-  when: vm_info.instance is defined
 
 - name: Remove virtual machine
   community.vmware.vmware_guest:
