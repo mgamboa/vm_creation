@@ -4,7 +4,7 @@
 
 • this is the structure would be with the script project
 ```  bash
-Project
+<Project Name>
 ├── ansible.cfg
 ├── files
 ├── group_vars
