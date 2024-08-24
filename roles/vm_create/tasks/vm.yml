@@ -133,20 +133,17 @@
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
     validate_certs: no
     name: "{{ vm_name }}"
   delegate_to: localhost
   register: vm_info
-  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None
-  retries: 30
-  delay: 10
+  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+  retries: 10
+  delay: 6
   when: 
     - patch_os | default(false) | bool
     - patching_result.changed
     - kernel_version.changed
-
-
 
 - name: Display VM IP address
   debug:
@@ -155,3 +152,4 @@
     - patch_os | default(false) | bool
     - patching_result.changed
     - kernel_version.changed
+    - vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
