@@ -1,5 +1,3 @@
-# roles/vm_remove/tasks/main.yml
-
 ---
 - name: Make sure requirements are met to run vmware modules PyVmomi and PyVim
   ansible.builtin.pip:
@@ -21,9 +19,9 @@
   register: vm_info
   ignore_errors: yes
 
-- name: Display VM owner
+- name: Display VM details
   debug:
-    msg: "The owner of {{ vm_name }} is {{ vm_info.instance.customvalues.Owner }}"
+    msg: "VM {{ vm_name }} details: {{ vm_info.instance | default('VM not found') }}"
   when: vm_info.instance is defined
 
 - name: Confirm VM removal
@@ -48,4 +46,11 @@
 
 - name: VM removal status
   debug:
-    msg: "{{ 'VM has been removed successfully.' if (vm_info.instance is defined and confirmation.user_input | lower == 'yes') else 'VM removal was cancelled or VM does not exist.' }}"
+    msg: >
+      {% if vm_info.instance is not defined %}
+        VM {{ vm_name }} does not exist.
+      {% elif confirmation.user_input | lower == 'yes' %}
+        VM {{ vm_name }} has been removed successfully.
+      {% else %}
+        VM removal was cancelled. VM {{ vm_name }} still exists.
+      {% endif %}
