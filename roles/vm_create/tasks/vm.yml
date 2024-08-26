@@ -161,8 +161,4 @@
 - name: Display VM IP address
   debug:
     msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ipv4 }}"
-  when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
-    - vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+ 
