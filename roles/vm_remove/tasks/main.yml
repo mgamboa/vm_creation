@@ -55,7 +55,7 @@
 - name: Update VMware vCenter inventory source  # This task help to update the inventory when machine is remove from awx
   awx.awx.inventory_source_update:
     name: "VMware vCenter"
-    inventory: "Vmware center"
+    inventory: "Vmware vsphere"
     organization: "Tash Corporation"  # The organization name
     tower_host: "https://awx-awx.apps.okd.itmco.local"  # AWX host URL
     tower_username: "{{ awx_username }}"  # Use a variable for the username

@@ -157,7 +157,7 @@
 - name: Update VMware vCenter inventory source
   awx.awx.inventory_source_update:
     name: "VMware vCenter"
-    inventory: "Vmware center"
+    inventory: "Vmware vsphere"
     organization: "Tash Corporation"  # Replace with your organization name
     tower_host: "https://awx-awx.apps.okd.itmco.local"  # Replace with your AWX host URL
     tower_username: "{{ awx_username }}"  # Use a variable for the username
