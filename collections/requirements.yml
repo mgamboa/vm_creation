@@ -4,3 +4,4 @@ collections:
 - community.general
 - vmware.vmware
 - vmware.vmware_rest
+- awx.awx

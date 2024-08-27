@@ -40,6 +40,7 @@
     - vm_info.instance is defined
     - confirm_removal | bool
 
+
 - name: VM removal status
   debug:
     msg: >
@@ -50,3 +51,21 @@
       {% else %}
         VM removal was not confirmed. VM {{ vm_name }} still exists.
       {% endif %}
+
+- name: Update VMware vCenter inventory source  # This task help to update the inventory when machine is remove from awx
+  awx.awx.inventory_source_update:
+    name: "VMware vCenter"
+    inventory: "Vmware vsphere"
+    organization: "Tash Corporation"  # The organization name
+    tower_host: "https://awx-awx.apps.okd.itmco.local"  # AWX host URL
+    tower_username: "{{ awx_username }}"  # Use a variable for the username
+    tower_password: "{{ awx_password }}"  # Use a variable for the password
+    validate_certs: no  # Set to 'no' because using self-signed certs
+  delegate_to: localhost
+  register: inventory_update_result
+
+- name: Wait for inventory update to complete
+  awx.awx.job_wait:
+    job_id: "{{ inventory_update_result.id }}"
+  delegate_to: localhost
+  when: inventory_update_result is changed
