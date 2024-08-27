@@ -158,11 +158,11 @@
   awx.awx.inventory_source_update:
     name: "VMware vCenter"
     inventory: "Vmware vsphere"
-    organization: "Tash Corporation"  # Replace with your organization name
-    tower_host: "https://awx-awx.apps.okd.itmco.local"  # Replace with your AWX host URL
+    organization: "Tash Corporation"  # The organization name
+    tower_host: "https://awx-awx.apps.okd.itmco.local"  #  AWX host URL
     tower_username: "{{ awx_username }}"  # Use a variable for the username
     tower_password: "{{ awx_password }}"  # Use a variable for the password
-    validate_certs: yes  # Set to 'no' if using self-signed certs
+    validate_certs: no  # Set to 'no' if using self-signed certs
   delegate_to: localhost
   register: inventory_update_result
 
