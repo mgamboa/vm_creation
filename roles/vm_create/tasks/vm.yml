@@ -20,6 +20,7 @@
     folder: "{{ vm_folder }}"
     state: "poweredon"
   delegate_to: localhost
+  register: vm_creation_result
 
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
@@ -94,6 +95,7 @@
     vm_shell: /bin/bash
     vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
   delegate_to: localhost
+   when: vm_creation_result is changed
   
 - name: Reboot VM if kernel was updated
   community.vmware.vmware_guest_powerstate:
