@@ -197,22 +197,31 @@
     msg: "Warning: No inventory named 'Vmware' was found."
   when: vmware_inventory_id is not defined
 
+- name: Display available inventory sources
+  debug:
+    msg: "Available inventory sources: {{ inventory_sources | map(attribute='name') | list }}"
 
 - name: Update VMware vCenter inventory source
   awx.awx.inventory_source_update:
-    name: "VMware vCenter"
+    name: "{{ awx_inventory_source_name | default('VMware vCenter') }}"
     inventory: "{{ vmware_inventory_id }}"
-    organization: "Tash"  # The organization name
-    tower_host: "https://awx-awx.apps.okd.itmco.local"  #  AWX host URL
-    tower_username: "{{ awx_username }}"  # Use a variable for the username
-    tower_password: "{{ awx_password }}"  # Use a variable for the password
-    validate_certs: no  # Set to 'no' if using self-signed certs
+    organization: "{{ awx_organization_name | default('Tash') }}"
+    tower_host: "{{ awx_tower_url }}"
+    tower_username: "{{ awx_username }}"
+    tower_password: "{{ awx_password }}"
+    validate_certs: false
   delegate_to: localhost
   register: inventory_update_result
+  when: vmware_inventory_id is defined
+  ignore_errors: true
+
+- name: Display inventory update result
+  debug:
+    var: inventory_update_result
 
 - name: Wait for inventory update to complete
   awx.awx.job_wait:
     job_id: "{{ inventory_update_result.id }}"
   delegate_to: localhost
-  when: inventory_update_result is changed
+  when: inventory_update_result is changed and inventory_update_result is success
 
