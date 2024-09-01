@@ -52,6 +52,27 @@
         VM removal was not confirmed. VM {{ vm_name }} still exists.
       {% endif %}
 
+- name: Get inventory information
+  awx.awx.inventory_info:
+    tower_host: "{{ awx_tower_url | default('https://awx-awx.apps.okd.itmco.local') }}"
+    tower_username: "{{ awx_username }}"
+    tower_password: "{{ awx_password }}"
+    validate_certs: no
+  delegate_to: localhost
+  register: inventory_info
+
+- name: Display inventory information
+  debug:
+    msg: "Inventory Name: {{ item.name }}, ID: {{ item.id }}, Organization: {{ item.organization }}"
+  loop: "{{ inventory_info.inventories }}"
+  when: inventory_info.inventories is defined
+
+- name: Set fact for Vmware inventory ID
+  set_fact:
+    vmware_inventory_id: "{{ item.id }}"
+  loop: "{{ inventory_info.inventories }}"
+  when: item.name == 'Vmware'
+
 - name: Update VMware vCenter inventory source
   awx.awx.inventory_source_update:
     name: "VMware vCenter"
