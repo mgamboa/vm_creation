@@ -171,26 +171,31 @@
 
 
 
-- name: Look up inventory IDs
+- name: Look up all inventory IDs
   set_fact:
     inventories: "{{ lookup('awx.awx.controller_api', 'inventories', host=awx_tower_url, username=awx_username, password=awx_password, verify_ssl=false) }}"
 
-- name: Display inventory information
+- name: Display all inventory information
   debug:
-    msg: "Inventory Name: {{ item.name }}, ID: {{ item.id }}, Organization: {{ item.organization }}"
-  loop: "{{ inventories.results }}"
-  when: inventories.results is defined
+    msg: "Inventory ID: {{ item.id }}, Name: {{ item.name }}, Organization: {{ item.organization }}"
+  loop: "{{ inventories }}"
+  when: inventories is defined
 
 - name: Set fact for Vmware inventory ID
   set_fact:
     vmware_inventory_id: "{{ item.id }}"
-  loop: "{{ inventories.results }}"
+  loop: "{{ inventories }}"
   when: item.name == 'Vmware'
 
-- name: Display Vmware inventory ID
+- name: Display Vmware inventory ID (if found)
   debug:
-    var: vmware_inventory_id
+    msg: "Vmware inventory ID: {{ vmware_inventory_id }}"
   when: vmware_inventory_id is defined
+
+- name: Display warning if Vmware inventory not found
+  debug:
+    msg: "Warning: No inventory named 'Vmware' was found."
+  when: vmware_inventory_id is not defined
 
 
 - name: Update VMware vCenter inventory source
