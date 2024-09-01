@@ -52,9 +52,9 @@
         VM removal was not confirmed. VM {{ vm_name }} still exists.
       {% endif %}
 ######
-- name: Look up inventory IDs
+ name: Look up inventory IDs
   set_fact:
-    inventories: "{{ lookup('awx.awx.tower_api', 'inventories', host=awx_tower_url, username=awx_username, password=awx_password, verify_ssl=false) }}"
+    inventories: "{{ lookup('awx.awx.controller_api', 'inventories', host=awx_tower_url, username=awx_username, password=awx_password, verify_ssl=false) }}"
 
 - name: Display inventory information
   debug:
