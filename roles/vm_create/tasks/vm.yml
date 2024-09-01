@@ -168,6 +168,29 @@
     - vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
 
 
+######
+ name: Look up inventory IDs
+  set_fact:
+    inventories: "{{ lookup('awx.awx.controller_api', 'inventories', host=awx_tower_url, username=awx_username, password=awx_password, verify_ssl=false) }}"
+
+- name: Display inventory information
+  debug:
+    msg: "Inventory Name: {{ item.name }}, ID: {{ item.id }}, Organization: {{ item.organization }}"
+  loop: "{{ inventories.results }}"
+  when: inventories.results is defined
+
+- name: Set fact for Vmware inventory ID
+  set_fact:
+    vmware_inventory_id: "{{ item.id }}"
+  loop: "{{ inventories.results }}"
+  when: item.name == 'Vmware'
+
+- name: Display Vmware inventory ID
+  debug:
+    var: vmware_inventory_id
+  when: vmware_inventory_id is defined
+######
+
 - name: Update VMware vCenter inventory source
   awx.awx.inventory_source_update:
     name: "VMware vCenter"
