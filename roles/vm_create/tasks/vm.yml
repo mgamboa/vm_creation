@@ -169,7 +169,7 @@
 
 
 ######
- name: Look up inventory IDs
+- name: Look up inventory IDs
   set_fact:
     inventories: "{{ lookup('awx.awx.controller_api', 'inventories', host=awx_tower_url, username=awx_username, password=awx_password, verify_ssl=false) }}"
 
