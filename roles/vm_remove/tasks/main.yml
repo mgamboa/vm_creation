@@ -74,23 +74,3 @@
     var: vmware_inventory_id
   when: vmware_inventory_id is defined
 
-
-- name: Update VMware vCenter inventory source
-  awx.awx.inventory_source_update:
-    name: "VMware vCenter"
-    inventory: "{{ vmware_inventory_id }}"
-    organization: "Tash"  # The organization name
-    tower_host: "https://awx-awx.apps.okd.itmco.local"  #  AWX host URL
-    tower_username: "{{ awx_username }}"  # Use a variable for the username
-    tower_password: "{{ awx_password }}"  # Use a variable for the password
-    validate_certs: no  # Set to 'no' if using self-signed certs
-  delegate_to: localhost
-  register: inventory_update_result
-
-- name: Wait for inventory update to complete
-  awx.awx.job_wait:
-    job_id: "{{ inventory_update_result.id }}"
-  delegate_to: localhost
-  when: inventory_update_result is changed
-
-
