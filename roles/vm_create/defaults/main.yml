@@ -21,3 +21,4 @@ ansible_python_interpreter: "/usr/bin/python3"
 ansible_connection: "local"
 awx_user: "{{ lookup('env', 'AWX_USER') }}"  # This will be set by AWX
 vmware_inventory_id: 4
+awx_: https://awx-awx.apps.okd.itmco.local
