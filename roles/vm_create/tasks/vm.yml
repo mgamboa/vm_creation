@@ -172,7 +172,7 @@
   awx.awx.inventory_source_update:
     name: "VMware vCenter"
     inventory: "Vmware"
-    organization: "Tash Corporation"  # The organization name
+    organization: "Tash"  # The organization name
     tower_host: "https://awx-awx.apps.okd.itmco.local"  #  AWX host URL
     tower_username: "{{ awx_username }}"  # Use a variable for the username
     tower_password: "{{ awx_password }}"  # Use a variable for the password
