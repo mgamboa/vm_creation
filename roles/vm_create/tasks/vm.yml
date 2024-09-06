@@ -7,7 +7,17 @@
     state: present
   delegate_to: localhost
 
-- name: Create a virtual machine 
+
+- name: Generate random hostname
+  ansible.builtin.set_fact:
+    random_hostname: "{{ lookup('ansible.builtin.random_string', length=8, chars=['ascii_lowercase', 'digits']) }}"
+    domain: "itmco.local"
+
+- name: Set FQDN
+  ansible.builtin.set_fact:
+    fqdn: "{{ random_hostname }}.{{ domain }}"
+
+- name: Create a virtual machine with customization and DHCP
   community.vmware.vmware_guest:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -19,8 +29,14 @@
     template: "{{ 'RH8' if version == '8' else 'RH9' }}"
     folder: "{{ vm_folder }}"
     state: "poweredon"
+    customization:
+      domain: "{{ domain }}"
+      hostname: "{{ random_hostname }}"
+    networks:
+      - type: dhcp
   delegate_to: localhost
   register: vm_creation_result
+  
 
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
