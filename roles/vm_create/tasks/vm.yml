@@ -32,8 +32,11 @@
       domain: "{{ domain }}"
       hostname: "{{ random_hostname }}"
     networks:
-      - name: "DSwitch-VM Network"
-      - type: dhcp
+      - name: "{{ vm_network_name }}"
+        device_type: vmxnet3
+        connected: true
+        start_connected: true
+    wait_for_ip_address: true
   delegate_to: localhost
   register: vm_creation_result
   
