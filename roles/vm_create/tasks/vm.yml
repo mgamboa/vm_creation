@@ -174,7 +174,7 @@
   awx.awx.inventory_source_update:
     name: "{{ awx_inventory_source_name | default('VMware vCenter') }}"
     inventory: "{{ vmware_inventory_id }}"
-    organization: "{{ awx_organization_name | default('Tash') }}"
+    organization: "{{ awx_organization_name | default('Default') }}"
     tower_host: "{{ awx_tower_url }}"
     tower_username: "{{ awx_username }}"
     tower_password: "{{ awx_password }}"
