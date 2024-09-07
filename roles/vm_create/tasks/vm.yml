@@ -225,13 +225,35 @@
   when: vmware_inventory_id is defined
   ignore_errors: true
 
-- name: Display inventory update result
+- name: Display initial inventory update result
   debug:
     var: inventory_update_result
 
 - name: Wait for inventory update to complete
-  awx.awx.job_wait:
-    job_id: "{{ inventory_update_result.id }}"
-  delegate_to: localhost
-  when: inventory_update_result is changed and inventory_update_result is success
+  uri:
+    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
+    method: GET
+    user: "{{ awx_username }}"
+    password: "{{ awx_password }}"
+    force_basic_auth: yes
+    validate_certs: no
+    return_content: yes
+  register: job_result
+  until: job_result.json.status not in ['pending', 'waiting', 'running']
+  retries: 60
+  delay: 10
+  ignore_errors: yes
 
+- name: Display final inventory update status
+  debug:
+    var: job_result
+
+- name: Check inventory update result
+  fail:
+    msg: "Inventory update failed or timed out. Final status: {{ job_result.json.status | default('Unknown') }}"
+  when: job_result.json.status is not defined or job_result.json.status != 'successful'
+
+- name: Report successful inventory update
+  debug:
+    msg: "Inventory update completed successfully"
+  when: job_result.json.status is defined and job_result.json.status == 'successful'
