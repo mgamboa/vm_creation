@@ -82,7 +82,7 @@
     return_content: yes
   register: job_result
   until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
-  retries: 40
+  retries: 10
   delay: 10
   ignore_errors: true
 
