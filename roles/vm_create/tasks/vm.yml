@@ -90,45 +90,41 @@
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
 - name: Check initial kernel version
-  command: uname -r
+  shell: uname -r
   register: initial_kernel_version
   changed_when: false
   delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Check for available updates on remote VM
-  dnf:
-    list: updates
+  shell: dnf check-update -q
   register: dnf_check
+  changed_when: dnf_check.rc == 100
+  failed_when: dnf_check.rc not in [0, 100]
   delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Debug available updates
   debug:
     var: dnf_check
-  delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Perform system update on remote VM
-  dnf:
-    name: "*"
-    state: latest
-    update_cache: yes
-    become: yes
+  shell: dnf update -y
+  register: patching_result
+  changed_when: "'No packages marked for update' not in patching_result.stdout"
+  delegate_to: "{{ vm_ip }}"
   when: 
     - patch_os | default(false) | bool
-    - dnf_check.results | default([]) | length > 0
-  register: patching_result
-  delegate_to: "{{ vm_ip }}"
+    - dnf_check.rc == 100
 
 - name: Debug update result
   debug:
     var: patching_result
-  delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Check updated kernel version
-  command: rpm -q --last kernel | head -n 1
+  shell: rpm -q --last kernel | head -n 1
   register: updated_kernel_version
   changed_when: false
   delegate_to: "{{ vm_ip }}"
@@ -139,7 +135,6 @@
     msg: 
       - "Initial kernel version: {{ initial_kernel_version.stdout }}"
       - "Updated kernel version: {{ updated_kernel_version.stdout }}"
-  delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Set fact for kernel update status
@@ -147,6 +142,8 @@
     kernel_updated: "{{ initial_kernel_version.stdout != updated_kernel_version.stdout.split()[0] }}"
   when: patch_os | default(false) | bool
 
+
+  
 - name: Change root password
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
