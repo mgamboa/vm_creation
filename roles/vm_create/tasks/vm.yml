@@ -80,9 +80,18 @@
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
     vm_shell_args: "-c 'dnf update -y'"
+  wait_for_process: true
+    timeout: 3600
   delegate_to: localhost
   when: patch_os | default(false) | bool
   register: patching_result
+
+- name: Check if update completed successfully
+  fail:
+    msg: "DNF update did not complete successfully"
+  when: 
+    - patch_os | default(false) | bool
+    - "'UPDATE_COMPLETE' not in patching_result.stdout"
 
 - name: Check kernel version
   community.vmware.vmware_vm_shell:
