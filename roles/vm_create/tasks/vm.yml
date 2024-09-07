@@ -39,7 +39,6 @@
     wait_for_ip_address: true
   delegate_to: localhost
   register: vm_creation_result
-  
 
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
@@ -55,8 +54,6 @@
   set_fact:
     vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
   delegate_to: localhost
-
-
 
 - name: Wait for VM to get an IP address
   community.vmware.vmware_guest_info:
@@ -92,7 +89,14 @@
     ansible_password: "{{ initial_root_password }}"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
-- name: Check for available updates
+- name: Check initial kernel version
+  command: uname -r
+  register: initial_kernel_version
+  changed_when: false
+  delegate_to: "{{ vm_ip }}"
+  when: patch_os | default(false) | bool
+
+- name: Check for available updates on remote VM
   dnf:
     list: updates
   register: dnf_check
@@ -104,14 +108,14 @@
     var: dnf_check
   when: patch_os | default(false) | bool
 
-- name: Perform system update
+- name: Perform system update on remote VM
   dnf:
     name: "*"
     state: latest
     update_cache: yes
   when: 
     - patch_os | default(false) | bool
-    - dnf_check.changes.updated | default([]) | length > 0
+    - dnf_check.results | default([]) | length > 0
   register: patching_result
   delegate_to: "{{ vm_ip }}"
 
@@ -120,11 +124,23 @@
     var: patching_result
   when: patch_os | default(false) | bool
 
-- name: Check kernel version
-  command: uname -r
-  register: kernel_version
+- name: Check updated kernel version
+  command: rpm -q --last kernel | head -n 1
+  register: updated_kernel_version
   changed_when: false
   delegate_to: "{{ vm_ip }}"
+  when: patch_os | default(false) | bool
+
+- name: Debug kernel versions
+  debug:
+    msg: 
+      - "Initial kernel version: {{ initial_kernel_version.stdout }}"
+      - "Updated kernel version: {{ updated_kernel_version.stdout }}"
+  when: patch_os | default(false) | bool
+
+- name: Set fact for kernel update status
+  set_fact:
+    kernel_updated: "{{ initial_kernel_version.stdout != updated_kernel_version.stdout.split()[0] }}"
   when: patch_os | default(false) | bool
 
 - name: Change root password
@@ -153,7 +169,7 @@
   when: 
     - patch_os | default(false) | bool
     - patching_result.changed
-    - kernel_version.changed
+    - kernel_updated | bool
 
 - name: Wait for VM power state (powered on)
   community.vmware.vmware_guest_powerstate:
@@ -171,7 +187,7 @@
   when: 
     - patch_os | default(false) | bool
     - patching_result.changed
-    - kernel_version.changed
+    - kernel_updated | bool
 
 - name: Wait for VMware tools to become available
   community.vmware.vmware_guest_tools_wait:
@@ -184,7 +200,7 @@
   when: 
     - patch_os | default(false) | bool
     - patching_result.changed
-    - kernel_version.changed
+    - kernel_updated | bool
 
 - name: Wait for VM to get an IP address after reboot
   community.vmware.vmware_guest_info:
@@ -202,14 +218,13 @@
   when:
     - patch_os | default(false) | bool
     - patching_result.changed
-    - kernel_version.changed
+    - kernel_updated | bool
 
 - name: Display VM IP address
   debug:
     msg: "The IP address of {{ vm_name }} is {{ vm_info_after_reboot.instance.ipv4 }}"
   when: 
     - vm_info_after_reboot.instance.ipv4 is defined and vm_info_after_reboot.instance.ipv4 != None and vm_info_after_reboot.instance.ipv4 != ""
-
 
 - name: Update VMware vCenter inventory source
   awx.awx.inventory_source_update:
@@ -239,21 +254,24 @@
     validate_certs: no
     return_content: yes
   register: job_result
-  until: job_result.json.status not in ['pending', 'waiting', 'running']
+  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
   retries: 60
   delay: 10
-  ignore_errors: yes 
+  ignore_errors: yes
 
-- name: Display final inventory update status
+- name: Display job result details
   debug:
     var: job_result
 
 - name: Check inventory update result
   fail:
-    msg: "Inventory update failed or timed out. Final status: {{ job_result.json.status | default('Unknown') }}"
-  when: job_result.json.status is not defined or job_result.json.status != 'successful'
+    msg: >
+      Inventory update failed or timed out. 
+      Status: {{ job_result.json.status | default('Unknown') if job_result.json is defined else 'API call failed' }}
+      Error details: {{ job_result.msg | default('No error message') if job_result.failed else 'No error' }}
+  when: job_result is failed or job_result.json is not defined or job_result.json.status != 'successful'
 
 - name: Report successful inventory update
   debug:
     msg: "Inventory update completed successfully"
-  when: job_result.json.status is defined and job_result.json.status == 'successful'
+  when: job_result is success and job_result.json is defined and job_result.json.status == 'successful'
