@@ -93,12 +93,17 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "pgrep dnf || echo 'Patching complete'"
+    vm_shell_args: "ps aux | grep -v grep | grep -q dnf || echo 'Patching complete'"
   delegate_to: localhost
   register: patching_status
-  until: "'Patching complete' in patching_status.msg"
+  until: patching_status.changed
   retries: 60
   delay: 10
+  when: patching_result.changed
+
+- name: Debug patching status
+  debug:
+    var: patching_status
   when: patching_result.changed
 
 - name: Verify system is up to date
