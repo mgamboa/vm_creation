@@ -242,7 +242,7 @@
   until: job_result.json.status not in ['pending', 'waiting', 'running']
   retries: 60
   delay: 10
-  ignore_errors: yes
+  ignore_errors: yes 
 
 - name: Display final inventory update status
   debug:
