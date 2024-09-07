@@ -108,7 +108,7 @@
 
 - name: Set fact for update completion
   set_fact:
-    update_completed: "{{ update_completion.stdout | trim == '1' }}"
+    update_completed: "{{ update_completion.changed }}"
   when: patch_os | default(false) | bool
 
 - name: Check if reboot is required
