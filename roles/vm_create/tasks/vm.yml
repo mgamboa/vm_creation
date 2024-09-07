@@ -56,7 +56,7 @@
   delegate_to: localhost
 
 
-- name: Copy update script to VM
+- name: Perform System updates
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -66,34 +66,12 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: |
-      cat << 'EOF' > /tmp/update_script.sh
-      #!/bin/bash
-      dnf update -y
-      echo "Update completed"
-      EOF
-      chmod +x /tmp/update_script.sh
+    vm_shell_args: "-c 'dnf update -y'"
+    wait_for_process: true
+    timeout: 300  # 1 hour timeout, adjust as needed
   delegate_to: localhost
   when: patch_os | default(false) | bool
-
-- name: Run update script
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "/tmp/update_script.sh"
-  delegate_to: localhost
   register: update_result
-  until: update_result.stdout == "Update completed"
-  retries: 30
-  delay: 60
-  when: patch_os | default(false) | bool
-
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
@@ -118,7 +96,10 @@
     name: "{{ vm_name }}"
     state: reboot-guest
   delegate_to: localhost
-  when: patch_os | default(false) | bool  
+  when: 
+    - patch_os | default(false) | bool  
+    - update_result | default(false) |bool
+
   register: reboot_result
     
 - name: Wait for VM power state (powered on)
@@ -176,7 +157,8 @@
   when: 
     - vm_info_after_reboot.instance.ipv4 is defined and vm_info_after_reboot.instance.ipv4 != None and vm_info_after_reboot.instance.ipv4 != ""
 
-- name: Update VMware vCenter inventory source
+
+- name: Update Machine inventory source
   awx.awx.inventory_source_update:
     name: "{{ awx_inventory_source_name | default('VMware vCenter') }}"
     inventory: "{{ vmware_inventory_id }}"
