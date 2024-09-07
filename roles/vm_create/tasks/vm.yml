@@ -207,7 +207,7 @@
   until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
   retries: 40
   delay: 10
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Display job result details
   debug:

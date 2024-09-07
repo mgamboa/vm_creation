@@ -53,21 +53,49 @@
       {% endif %}
 
 
-- name: Look up inventory IDs
-  set_fact:
-    inventories: "{{ lookup('awx.awx.controller_api', 'inventories', host=awx_tower_url, username=awx_username, password=awx_password, verify_ssl=false) }}"
+- name: Update VMware vCenter inventory source
+  awx.awx.inventory_source_update:
+    name: "{{ awx_inventory_source_name | default('VMware vCenter') }}"
+    inventory: "{{ vmware_inventory_id }}"
+    organization: "{{ awx_organization_name | default('Default') }}"
+    tower_host: "{{ awx_tower_url }}"
+    tower_username: "{{ awx_username }}"
+    tower_password: "{{ awx_password }}"
+    validate_certs: false
+  delegate_to: localhost
+  register: inventory_update_result
+  when: vmware_inventory_id is defined
+  ignore_errors: true
 
-- name: Create list of inventory IDs
-  set_fact:
-    inventory_id_list: "{{ inventories.results | map(attribute='id') | list }}"
+- name: Wait for inventory update to complete
+  uri:
+    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
+    method: GET
+    user: "{{ awx_username }}"
+    password: "{{ awx_password }}"
+    force_basic_auth: yes
+    validate_certs: no
+    return_content: yes
+  register: job_result
+  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
+  retries: 40
+  delay: 10
+  ignore_errors: yes
 
-- name: Display all inventory IDs
+- name: Display job result details
   debug:
-    msg: "All Inventory IDs: {{ inventory_id_list }}"
+    var: job_result
 
-- name: Display individual inventory IDs
+- name: Check inventory update result
+  fail:
+    msg: >
+      Inventory update failed or timed out. 
+      Status: {{ job_result.json.status | default('Unknown') if job_result.json is defined else 'API call failed' }}
+      Error details: {{ job_result.msg | default('No error message') if job_result.failed else 'No error' }}
+  when: job_result is failed or job_result.json is not defined or job_result.json.status != 'successful'
+
+- name: Report successful inventory update
   debug:
-    msg: "Inventory ID: {{ item }}"
-  loop: "{{ inventory_id_list }}"
-
+    msg: "Inventory update completed successfully"
+  when: job_result is success and job_result.json is defined and job_result.json.status == 'successful'
 
