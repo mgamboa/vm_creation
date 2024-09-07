@@ -72,6 +72,7 @@
   delegate_to: localhost
   when: patch_os | default(false) | bool
   register: update_result
+  ignore_errors: true
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
