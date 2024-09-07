@@ -106,6 +106,7 @@
 - name: Debug available updates
   debug:
     var: dnf_check
+  delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Perform system update on remote VM
@@ -123,6 +124,7 @@
 - name: Debug update result
   debug:
     var: patching_result
+  delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Check updated kernel version
@@ -137,6 +139,7 @@
     msg: 
       - "Initial kernel version: {{ initial_kernel_version.stdout }}"
       - "Updated kernel version: {{ updated_kernel_version.stdout }}"
+  delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
 - name: Set fact for kernel update status
