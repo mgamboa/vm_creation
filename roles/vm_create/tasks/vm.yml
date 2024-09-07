@@ -56,7 +56,7 @@
   delegate_to: localhost
 
 
-- name: Perform System updates
+- name: Copy update script to VM
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -66,27 +66,17 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'dnf update -y & echo $! | sed \"s/\\[1\\] //\"'"
+    vm_shell_args: |
+      cat << 'EOF' > /tmp/update_script.sh
+      #!/bin/bash
+      dnf update -y
+      echo "Update completed"
+      EOF
+      chmod +x /tmp/update_script.sh
   delegate_to: localhost
   when: patch_os | default(false) | bool
-  register: updates_result
 
-- name: Debug update start result
-  debug:
-    var: updates_result
-  when: patch_os | default(false) | bool
-
-- name: Extract PID of update process
-  set_fact:
-    update_pid: "{{ updates_result.msg }}"
-  when: patch_os | default(false) | bool
-
-- name: Debug extracted PID
-  debug:
-    var: update_pid
-  when: patch_os | default(false) | bool
-
-- name: Wait for update process to complete
+- name: Run update script
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -96,46 +86,12 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'while kill -0 {{ update_pid }} 2>/dev/null; do sleep 10; done; echo 1'"
+    vm_shell_args: "/tmp/update_script.sh"
   delegate_to: localhost
-  retries: 2
-  delay: 300
-  register: update_completion
-  when: patch_os | default(false) | bool
-
-- name: Debug update completion result
-  debug:
-    var: update_completion
-  when: patch_os | default(false) | bool
-
-- name: Set fact for update completion
-  set_fact:
-    update_completed: "{{ update_completion.changed }}"
-  when: patch_os | default(false) | bool
-
-- name: Check if reboot is required
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "-c 'if [ -f /var/run/reboot-required ] || [ -f /usr/bin/needs-restarting ]; then echo 1; else echo 0; fi'"
-  delegate_to: localhost
-  register: reboot_status
-  when: patch_os | default(false) | bool
-
-- name: Debug reboot status
-  debug:
-    var: reboot_status
-  when: patch_os | default(false) | bool
-
-- name: Set fact for reboot required
-  set_fact:
-    reboot_required: "{{ reboot_status.changed }}"
+  register: update_result
+  until: update_result.stdout == "Update completed"
+  retries: 30
+  delay: 60
   when: patch_os | default(false) | bool
 
 
@@ -162,10 +118,7 @@
     name: "{{ vm_name }}"
     state: reboot-guest
   delegate_to: localhost
-  when: 
-    - patch_os | default(false) | bool
-    - update_completed | bool
-    - reboot_required | bool
+  when: patch_os | default(false) | bool  
   register: reboot_result
     
 - name: Wait for VM power state (powered on)
@@ -241,20 +194,20 @@
   debug:
     var: inventory_update_result
 
-#- name: Wait for inventory update to complete
-#  uri:
-#    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
-#    method: GET
-#    user: "{{ awx_username }}"
-#    password: "{{ awx_password }}"
-#    force_basic_auth: yes
-#    validate_certs: no
-#    return_content: yes
-#  register: job_result
-#  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
-#  retries: 60
-#  delay: 10
-#  ignore_errors: yes
+- name: Wait for inventory update to complete
+  uri:
+    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
+    method: GET
+    user: "{{ awx_username }}"
+    password: "{{ awx_password }}"
+    force_basic_auth: yes
+    validate_certs: no
+    return_content: yes
+  register: job_result
+  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
+  retries: 4
+  delay: 10
+  ignore_errors: yes
 
 - name: Display job result details
   debug:
