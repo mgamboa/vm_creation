@@ -55,76 +55,82 @@
     vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
   delegate_to: localhost
 
-- name: Wait for VM to get an IP address
-  community.vmware.vmware_guest_info:
+
+- name: Perform System updates
+  community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
-    datacenter: "{{ datacenter_name }}"
     validate_certs: no
-    name: "{{ vm_name }}"
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'dnf update -y & echo $! | sed \"s/\\[1\\] //\"'"
   delegate_to: localhost
-  register: vm_info
-  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
-  retries: 10
-  delay: 6
-
-- name: Set VM IP address fact
-  set_fact:
-    vm_ip: "{{ vm_info.instance.ipv4 }}"
-
-- name: Wait for SSH to become available
-  wait_for:
-    host: "{{ vm_ip }}"
-    port: 22
-    delay: 10
-    timeout: 300
-  delegate_to: localhost
-
-- name: Add new VM to in-memory inventory
-  add_host:
-    name: "{{ vm_ip }}"
-    groups: new_vms
-    ansible_user: root
-    ansible_password: "{{ initial_root_password }}"
-    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-
-- name: Perform system update on remote VM
-  ansible.builtin.command: dnf update -y
-  async: 3600  # 1 hour timeout
-  poll: 30  # Check every 30 seconds
-  register: async_update_result
-  become: yes
-  when:
-    - patch_os | default(false) | bool
-    - dnf_check.rc == 100
-  hosts: new_vms  # Run on the new VM group
-
-
-- name: Check async update status
-  async_status:
-    jid: "{{ async_update_result.ansible_job_id }}"
-  register: job_result
-  until: job_result.finished
-  retries: 120  # 1 hour (30 seconds * 120)
-  delay: 30
-  delegate_to: "{{ vm_ip }}"
-  when: 
-    - patch_os | default(false) | bool
-    - dnf_check.rc == 100
-  
-
-- name: Set patching result
-  set_fact:
-    patching_result: "{{ job_result }}"
-  when: 
-    - patch_os | default(false) | bool
-    - dnf_check.rc == 100
-
-- name: Debug update result
-  debug:
-    var: patching_result
   when: patch_os | default(false) | bool
+  register: updates_result
+
+- name: Debug update start result
+  debug:
+    var: updates_result
+  when: patch_os | default(false) | bool
+
+- name: Extract PID of update process
+  set_fact:
+    update_pid: "{{ updates_result.stdout | trim }}"
+  when: patch_os | default(false) | bool
+
+- name: Wait for update process to complete
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'while kill -0 {{ update_pid }} 2>/dev/null; do sleep 10; done; echo 1'"
+  delegate_to: localhost
+  register: update_completion
+  when: patch_os | default(false) | bool
+
+- name: Debug update completion result
+  debug:
+    var: update_completion
+  when: patch_os | default(false) | bool
+
+- name: Set fact for update completion
+  set_fact:
+    update_completed: "{{ update_completion.stdout | trim == '1' }}"
+  when: patch_os | default(false) | bool
+
+- name: Check if reboot is required
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'if [ -f /var/run/reboot-required ] || [ -f /usr/bin/needs-restarting ]; then echo 1; else echo 0; fi'"
+  delegate_to: localhost
+  register: reboot_status
+  when: patch_os | default(false) | bool
+
+- name: Debug reboot status
+  debug:
+    var: reboot_status
+  when: patch_os | default(false) | bool
+
+- name: Set fact for reboot required
+  set_fact:
+    reboot_required: "{{ reboot_status.stdout | trim == '1' }}"
+  when: patch_os | default(false) | bool
+
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
@@ -140,7 +146,7 @@
   delegate_to: localhost
   when: vm_creation_result is changed
 
-- name: Reboot VM if kernel was updated
+- name: Reboot if required
   community.vmware.vmware_guest_powerstate:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -151,9 +157,9 @@
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_updated | bool
-
+    - update_completed | bool
+    - reboot_required | bool
+    
 - name: Wait for VM power state (powered on)
   community.vmware.vmware_guest_powerstate:
     hostname: "{{ vcenter_hostname }}"
