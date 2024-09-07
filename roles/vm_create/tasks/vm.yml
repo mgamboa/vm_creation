@@ -66,7 +66,7 @@
   delegate_to: localhost
   register: facts
 
-- name: Check current system update status
+- name: Check if system needs updates
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -79,19 +79,16 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'dnf check-update; echo $?'"
+    vm_shell_args: "dnf check-update"
   delegate_to: localhost
   register: update_check
-  ignore_errors: yes
+  failed_when: update_check.changed and update_check.msg != 100
+  changed_when: update_check.msg != 0 and update_check.msg != 100
 
 - name: Debug update check result
   debug:
     var: update_check
   when: patch_os | default(false) | bool
-
-- name: Set fact for update status
-  set_fact:
-    updates_needed: "{{ update_check.msg | string | trim | split('\n') | last not in ['0', '100'] }}"
 
 - name: Patching to latest version OS if updates available
   community.vmware.vmware_vm_shell:
@@ -106,13 +103,12 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'dnf update -y; echo $?'"
+    vm_shell_args: "dnf update -y"
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool
-    - updates_needed | bool
+    - update_check.changed
   register: patching_result
-  ignore_errors: yes
 
 - name: Debug patching result
   debug:
@@ -132,10 +128,11 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'dnf check-update; echo $?'"
+    vm_shell_args: "dnf check-update"
   delegate_to: localhost
   register: final_update_check
-  ignore_errors: yes
+  failed_when: final_update_check.changed and final_update_check.msg != 100
+  changed_when: final_update_check.msg != 0 and final_update_check.msg != 100
 
 - name: Debug final update check
   debug:
@@ -144,10 +141,10 @@
 
 - name: Check final patching status
   fail:
-    msg: "System is not fully up to date. Exit code: {{ final_update_check.msg | string | trim | split('\n') | last }}"
+    msg: "System is not fully up to date. Status: {{ final_update_check | to_json }}"
   when: 
     - patch_os | default(false) | bool
-    - final_update_check.msg | string | trim | split('\n') | last not in ["0", "100"]
+    - final_update_check.changed
 
 
 - name: Check kernel version
