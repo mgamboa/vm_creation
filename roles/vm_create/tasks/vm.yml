@@ -93,7 +93,7 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "ps aux | grep -v grep | grep -q dnf || echo 'Patching complete'"
+    vm_shell_args: "ps aux | grep -v grep | grep -q dnf || echo '1'"
   delegate_to: localhost
   register: patching_status
   until: patching_status.changed
