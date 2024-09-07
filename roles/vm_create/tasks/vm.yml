@@ -179,7 +179,7 @@
 
 - name: Wait for inventory update to complete
   uri:
-    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
+    url: "https://{{ awx_tower_url }}/api/v2/inventory_updates/{{ inventory_update_result.id }}/"
     method: GET
     user: "{{ awx_username }}"
     password: "{{ awx_password }}"
@@ -188,7 +188,7 @@
     return_content: yes
   register: job_result
   until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
-  retries: 10
+  retries: 15
   delay: 10
   ignore_errors: true
 

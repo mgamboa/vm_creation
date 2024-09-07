@@ -73,7 +73,7 @@
 
 - name: Wait for inventory update to complete
   uri:
-    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
+    url: "https://{{ awx_tower_url }}/api/v2/inventory_updates/{{ inventory_update_result.id }}/"
     method: GET
     user: "{{ awx_username }}"
     password: "{{ awx_password }}"
