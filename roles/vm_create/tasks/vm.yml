@@ -71,21 +71,13 @@
     timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
   when: patch_os | default(false) | bool
-  register: update_result
+  register: update_result.changed  | default(false) | bool
   ignore_errors: true
 
 
 - name: Debug update_result variable
   debug:
     var: update_result
-  when: patch_os | default(false) | bool
-
-- name: Debug specific parts of update_result variable
-  debug:
-    msg: 
-      - "Return code: {{ update_result.rc }}"
-      - "Stdout: {{ update_result.stdout }}"
-      - "Stderr: {{ update_result.stderr }}"
   when: patch_os | default(false) | bool
 
 
