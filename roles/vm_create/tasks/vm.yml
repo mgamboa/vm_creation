@@ -83,6 +83,19 @@
   delegate_to: localhost
   when: patch_os | default(false) | bool
   register: patching_result
+  ignore_errors: yes
+
+- name: Debug patching result
+  debug:
+    var: patching_result
+  when: patch_os | default(false) | bool
+
+- name: Check patching execution status
+  fail:
+    msg: "Failed to execute patching command: {{ patching_result.msg | default('Unknown error') }}"
+  when: 
+    - patch_os | default(false) | bool
+    - patching_result is failed
 
 - name: Wait for patching to complete
   community.vmware.vmware_vm_shell:
@@ -97,28 +110,26 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'grep -q UPDATE_COMPLETE /var/log/messages && echo PATCHING_DONE'"
+    vm_shell_args: "-c 'grep -q UPDATE_COMPLETE /var/log/messages && echo PATCHING_DONE || echo PATCHING_NOT_DONE'"
   delegate_to: localhost
   register: patching_status
-  until: "'PATCHING_DONE' in patching_status.results[0].stdout"
+  until: patching_status is success and patching_status.stdout is defined and 'PATCHING_DONE' in patching_status.stdout
   retries: 60
   delay: 60
-  when: patch_os | default(false) | bool
+  when: patch_os | default(false) | bool and patching_result is success
   ignore_errors: yes
-  
+
 - name: Debug patching status
   debug:
     var: patching_status
   when: patch_os | default(false) | bool
 
-
-- name: Check patching status
+- name: Check final patching status
   fail:
-    msg: "Patching failed or did not complete within the allocated time"
+    msg: "Patching failed or did not complete within the allocated time: {{ patching_status.msg | default('Unknown error') }}"
   when: 
     - patch_os | default(false) | bool
-    - "'PATCHING_DONE' not in patching_status.results[0].stdout"
-
+    - patching_status is failed or patching_status.stdout is not defined or 'PATCHING_DONE' not in patching_status.stdout
 
 
 - name: Check kernel version
