@@ -131,7 +131,6 @@
     - patch_os | default(false) | bool
     - patching_status is failed or patching_status.stdout is not defined or 'PATCHING_DONE' not in patching_status.stdout
 
-
 - name: Check kernel version
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
