@@ -89,31 +89,31 @@
     ansible_password: "{{ initial_root_password }}"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
-- name: Check initial kernel version
-  shell: uname -r
-  register: initial_kernel_version
-  changed_when: false
-  delegate_to: "{{ vm_ip }}"
-  when: patch_os | default(false) | bool
-
-- name: Check for available updates on remote VM
-  shell: dnf check-update -q
-  register: dnf_check
-  changed_when: dnf_check.rc == 100
-  failed_when: dnf_check.rc not in [0, 100]
-  delegate_to: "{{ vm_ip }}"
-  when: patch_os | default(false) | bool
-
-- name: Debug available updates
-  debug:
-    var: dnf_check
-  when: patch_os | default(false) | bool
-
 - name: Perform system update on remote VM
-  shell: dnf update -y
-  register: patching_result
-  changed_when: "'No packages marked for update' not in patching_result.stdout"
+  ansible.builtin.command: dnf update -y
+  async: 3600  # 1 hour timeout
+  poll: 30  # Check every 30 seconds
+  register: async_update_result
   delegate_to: "{{ vm_ip }}"
+  when: 
+    - patch_os | default(false) | bool
+    - dnf_check.rc == 100
+
+- name: Check async update status
+  async_status:
+    jid: "{{ async_update_result.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 120  # 1 hour (30 seconds * 120)
+  delay: 30
+  delegate_to: "{{ vm_ip }}"
+  when: 
+    - patch_os | default(false) | bool
+    - dnf_check.rc == 100
+
+- name: Set patching result
+  set_fact:
+    patching_result: "{{ job_result }}"
   when: 
     - patch_os | default(false) | bool
     - dnf_check.rc == 100
@@ -123,27 +123,6 @@
     var: patching_result
   when: patch_os | default(false) | bool
 
-- name: Check updated kernel version
-  shell: rpm -q --last kernel | head -n 1
-  register: updated_kernel_version
-  changed_when: false
-  delegate_to: "{{ vm_ip }}"
-  when: patch_os | default(false) | bool
-
-- name: Debug kernel versions
-  debug:
-    msg: 
-      - "Initial kernel version: {{ initial_kernel_version.stdout }}"
-      - "Updated kernel version: {{ updated_kernel_version.stdout }}"
-  when: patch_os | default(false) | bool
-
-- name: Set fact for kernel update status
-  set_fact:
-    kernel_updated: "{{ initial_kernel_version.stdout != updated_kernel_version.stdout.split()[0] }}"
-  when: patch_os | default(false) | bool
-
-
-  
 - name: Change root password
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
