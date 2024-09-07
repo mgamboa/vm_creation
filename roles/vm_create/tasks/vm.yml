@@ -9,7 +9,7 @@
 
 - name: Generate random hostname
   ansible.builtin.set_fact:
-    random_hostname: "host{{ lookup('community.general.random_string', length=6, chars=['ascii_lowercase', 'digits']) }}"
+    random_hostname: "vnp{{ lookup('community.general.random_string', length=4, chars=['digits']) }}"
     domain: "itmco.local"
 
 - name: Set FQDN
