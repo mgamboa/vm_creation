@@ -96,7 +96,6 @@
   dnf:
     list: updates
   register: dnf_check
-  become: yes
   delegate_to: "{{ vm_ip }}"
   when: patch_os | default(false) | bool
 
@@ -114,7 +113,6 @@
     - patch_os | default(false) | bool
     - dnf_check.changes.updated | default([]) | length > 0
   register: patching_result
-  become: yes
   delegate_to: "{{ vm_ip }}"
 
 - name: Debug update result
