@@ -81,7 +81,7 @@
     vm_shell: /bin/bash
     vm_shell_args: "-c 'dnf update -y'"
   wait_for_process: true
-    timeout: 3600
+  timeout: 3600
   delegate_to: localhost
   when: patch_os | default(false) | bool
   register: patching_result
