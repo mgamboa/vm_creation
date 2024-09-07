@@ -133,7 +133,7 @@
 
 - name: Set fact for reboot required
   set_fact:
-    reboot_required: "{{ reboot_status.stdout | trim == '1' }}"
+    reboot_required: "{{ reboot_status.changed }}"
   when: patch_os | default(false) | bool
 
 
@@ -194,8 +194,8 @@
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_updated | bool
+    - reboot_result is changed
+    
 
 - name: Wait for VM to get an IP address after reboot
   community.vmware.vmware_guest_info:
@@ -212,8 +212,8 @@
   delay: 6
   when:
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_updated | bool
+    
+    
 
 - name: Display VM IP address
   debug:
