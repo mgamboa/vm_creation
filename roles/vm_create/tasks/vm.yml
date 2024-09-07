@@ -56,16 +56,6 @@
     vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
   delegate_to: localhost
 
-- name: Wait for VMware tools to become available by MoID
-  community.vmware.vmware_guest_tools_wait:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    moid: "{{ vm_moid }}"
-  delegate_to: localhost
-  register: facts
-
 - name: Patching to latest version OS if updates available
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
@@ -90,6 +80,27 @@
     var: patching_result
   when: patch_os | default(false) | bool
 
+- name: Wait for patching to complete
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    folder: "{{ vm_folder }}"
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "pgrep dnf || echo 'Patching complete'"
+  delegate_to: localhost
+  register: patching_status
+  until: "'Patching complete' in patching_status.msg"
+  retries: 60
+  delay: 10
+  when: patching_result.changed
+
 - name: Verify system is up to date
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
@@ -106,8 +117,7 @@
     vm_shell_args: "dnf check-update"
   delegate_to: localhost
   register: final_update_check
-  failed_when: final_update_check.changed and final_update_check.msg != 100
-  changed_when: final_update_check.msg != 0 and final_update_check.msg != 100
+  failed_when: final_update_check.changed
 
 - name: Debug final update check
   debug:
@@ -116,11 +126,10 @@
 
 - name: Check final patching status
   fail:
-    msg: "System is not fully up to date. Status: {{ final_update_check | to_json }}"
+    msg: "System still needs updates after patching. Status: {{ final_update_check | to_json }}"
   when: 
     - patch_os | default(false) | bool
     - final_update_check.changed
-
 
 - name: Check kernel version
   community.vmware.vmware_vm_shell:
