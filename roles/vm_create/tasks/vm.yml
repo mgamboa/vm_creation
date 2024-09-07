@@ -94,10 +94,12 @@
   async: 3600  # 1 hour timeout
   poll: 30  # Check every 30 seconds
   register: async_update_result
-  delegate_to: "{{ vm_ip }}"
-  when: 
+  become: yes
+  when:
     - patch_os | default(false) | bool
     - dnf_check.rc == 100
+  hosts: new_vms  # Run on the new VM group
+
 
 - name: Check async update status
   async_status:
@@ -110,6 +112,7 @@
   when: 
     - patch_os | default(false) | bool
     - dnf_check.rc == 100
+  
 
 - name: Set patching result
   set_fact:
