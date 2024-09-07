@@ -56,103 +56,124 @@
     vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
   delegate_to: localhost
 
-- name: Patching to latest version OS if updates available
-  community.vmware.vmware_vm_shell:
+- name: Wait for VM to get an IP address
+  community.vmware.vmware_guest_info:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
-    validate_certs: no
     datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "dnf update -y"
+    validate_certs: no
+    name: "{{ vm_name }}"
   delegate_to: localhost
+  register: vm_info
+  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+  retries: 10
+  delay: 6
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Set VM IP address fact
+  set_fact:
+    vm_ip: "{{ vm_info.instance.ipv4 }}"
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Wait for SSH to become available
+  wait_for:
+    host: "{{ vm_ip }}"
+    port: 22
+    delay: 10
+    timeout: 300
+  delegate_to: localhost
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Add new VM to in-memory inventory
+  add_host:
+    name: "{{ vm_ip }}"
+    groups: new_vms
+    ansible_user: root
+    ansible_password: "{{ initial_root_password }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Check for available updates
+  dnf:
+    list: updates
+  register: dnf_check
+  become: yes
+  delegate_to: "{{ vm_ip }}"
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Debug available updates
+  debug:
+    var: dnf_check
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+
+- name: Perform system update
+  dnf:
+    name: "*"
+    state: latest
+    update_cache: yes
   when: 
     - patch_os | default(false) | bool
-  register: patching_result
+    - patching_result.changed
+    - kernel_version.changed
+    - dnf_check.changes.updated | default([]) | length > 0
+  register: dnf_update
+  become: yes
+  delegate_to: "{{ vm_ip }}"
 
-- name: Debug patching result
+- name: Debug update result
   debug:
-    var: patching_result
-  when: patch_os | default(false) | bool
-
-- name: Wait for patching to complete
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "ps aux | grep -v grep | grep -q dnf || echo '1'"
-  delegate_to: localhost
-  register: patching_status
-  until: patching_status.changed
-  retries: 60
-  delay: 10
-  when: patching_result.changed
-
-- name: Debug patching status
-  debug:
-    var: patching_status
-  when: patching_result.changed
+    var: dnf_update
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
 
 - name: Verify system is up to date
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "dnf check-update"
-  delegate_to: localhost
+  dnf:
+    list: updates
   register: final_update_check
-  failed_when: final_update_check.changed
+  become: yes
+  delegate_to: "{{ vm_ip }}"
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
 
 - name: Debug final update check
   debug:
     var: final_update_check
-  when: patch_os | default(false) | bool
+  when:
+    - patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
 
 - name: Check final patching status
   fail:
-    msg: "System still needs updates after patching. Status: {{ final_update_check | to_json }}"
+    msg: "System still needs updates after patching. Updates available: {{ final_update_check.changes.updated | default([]) }}"
   when: 
     - patch_os | default(false) | bool
-    - final_update_check.changed
-
-- name: Check kernel version
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "-c 'uname -r'"
-  delegate_to: localhost
-  register: kernel_version
-  when: patch_os | default(false) | bool
+    - patching_result.changed
+    - kernel_version.changed
+    - final_update_check.changes.updated | default([]) | length > 0
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
@@ -167,7 +188,7 @@
     vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
   delegate_to: localhost
   when: vm_creation_result is changed
-  
+
 - name: Reboot VM if kernel was updated
   community.vmware.vmware_guest_powerstate:
     hostname: "{{ vcenter_hostname }}"
@@ -180,7 +201,7 @@
   when: 
     - patch_os | default(false) | bool
     - patching_result.changed
-    - kernel_version.changed
+    - kernel_version.changed  
 
 - name: Wait for VM power state (powered on)
   community.vmware.vmware_guest_powerstate:
