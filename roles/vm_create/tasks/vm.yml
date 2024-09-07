@@ -79,19 +79,39 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'dnf update -y'"
-  wait_for_process: true
-  timeout: 3600
+    vm_shell_args: "-c 'dnf update -y && echo UPDATE_COMPLETE || echo UPDATE_FAILED'"
   delegate_to: localhost
   when: patch_os | default(false) | bool
   register: patching_result
 
-- name: Check if update completed successfully
+- name: Wait for patching to complete
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    folder: "{{ vm_folder }}"
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'grep -q UPDATE_COMPLETE /var/log/messages && echo PATCHING_DONE'"
+  delegate_to: localhost
+  register: patching_status
+  until: "'PATCHING_DONE' in patching_status.stdout"
+  retries: 60
+  delay: 60
+  when: patch_os | default(false) | bool
+
+- name: Check patching status
   fail:
-    msg: "DNF update did not complete successfully"
+    msg: "Patching failed or did not complete within the allocated time"
   when: 
     - patch_os | default(false) | bool
-    - "'UPDATE_COMPLETE' not in patching_result.stdout"
+    - "'PATCHING_DONE' not in patching_status.stdout"
+
 
 - name: Check kernel version
   community.vmware.vmware_vm_shell:
