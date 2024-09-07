@@ -105,6 +105,12 @@
   delay: 60
   when: patch_os | default(false) | bool
 
+- name: Debug patching status
+  debug:
+    var: patching_status
+  when: patch_os | default(false) | bool
+
+
 - name: Check patching status
   fail:
     msg: "Patching failed or did not complete within the allocated time"
