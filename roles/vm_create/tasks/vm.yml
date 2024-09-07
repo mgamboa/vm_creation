@@ -164,6 +164,7 @@
     - patch_os | default(false) | bool
     - update_completed | bool
     - reboot_required | bool
+  register: reboot_result
     
 - name: Wait for VM power state (powered on)
   community.vmware.vmware_guest_powerstate:
@@ -180,8 +181,8 @@
   delay: 10
   when: 
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_updated | bool
+    - reboot_result is changed
+
 
 - name: Wait for VMware tools to become available
   community.vmware.vmware_guest_tools_wait:
