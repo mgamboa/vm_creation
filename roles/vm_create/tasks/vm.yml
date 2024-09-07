@@ -239,20 +239,20 @@
   debug:
     var: inventory_update_result
 
-- name: Wait for inventory update to complete
-  uri:
-    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
-    method: GET
-    user: "{{ awx_username }}"
-    password: "{{ awx_password }}"
-    force_basic_auth: yes
-    validate_certs: no
-    return_content: yes
-  register: job_result
-  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
-  retries: 60
-  delay: 10
-  ignore_errors: yes
+#- name: Wait for inventory update to complete
+#  uri:
+#    url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
+#    method: GET
+#    user: "{{ awx_username }}"
+#    password: "{{ awx_password }}"
+#    force_basic_auth: yes
+#    validate_certs: no
+#    return_content: yes
+#  register: job_result
+#  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
+#  retries: 60
+#  delay: 10
+#  ignore_errors: yes
 
 - name: Display job result details
   debug:
