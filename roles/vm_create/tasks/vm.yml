@@ -66,7 +66,7 @@
   delegate_to: localhost
   register: facts
 
-- name: Patching to latest version OS
+- name: Check current system update status
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -79,9 +79,34 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'dnf update -y && echo UPDATE_COMPLETE || echo UPDATE_FAILED'"
+    vm_shell_args: "-c 'dnf check-update'"
   delegate_to: localhost
+  register: update_check
+  ignore_errors: yes
+
+- name: Debug update check result
+  debug:
+    var: update_check
   when: patch_os | default(false) | bool
+
+- name: Patching to latest version OS if updates available
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    folder: "{{ vm_folder }}"
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'dnf update -y'"
+  delegate_to: localhost
+  when: 
+    - patch_os | default(false) | bool
+    - update_check.msg != 0  # If msg is not 0, updates are available
   register: patching_result
   ignore_errors: yes
 
@@ -90,7 +115,7 @@
     var: patching_result
   when: patch_os | default(false) | bool
 
-- name: Wait for patching to complete
+- name: Verify system is up to date
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -103,31 +128,22 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'grep -q UPDATE_COMPLETE /var/log/messages && echo PATCHING_DONE || echo PATCHING_NOT_DONE'"
+    vm_shell_args: "-c 'dnf check-update'"
   delegate_to: localhost
-  register: patching_status
-  until: patching_status is success
-  retries: 60
-  delay: 60
-  when: patch_os | default(false) | bool
+  register: final_update_check
   ignore_errors: yes
 
-- name: Debug patching status
+- name: Debug final update check
   debug:
-    var: patching_status
-  when: patch_os | default(false) | bool
-
-- name: Debug patching status stdout
-  debug:
-    msg: "Stdout is {{ patching_status.stdout | default('not defined') }}"
+    var: final_update_check
   when: patch_os | default(false) | bool
 
 - name: Check final patching status
   fail:
-    msg: "Patching failed or did not complete within the allocated time: {{ patching_status | to_json }}"
+    msg: "System is not fully up to date: {{ final_update_check | to_json }}"
   when: 
     - patch_os | default(false) | bool
-    - patching_status is failed or patching_status.stdout is not defined or 'PATCHING_DONE' not in (patching_status.stdout | default(''))
+    - final_update_check.msg != 0
 
 - name: Check kernel version
   community.vmware.vmware_vm_shell:
