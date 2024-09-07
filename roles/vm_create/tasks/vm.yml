@@ -83,7 +83,6 @@
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool
-    - update_check.changed
   register: patching_result
 
 - name: Debug patching result
