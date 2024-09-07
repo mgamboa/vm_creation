@@ -68,11 +68,26 @@
     vm_shell: /bin/bash
     vm_shell_args: "-c 'dnf update -y'"
     wait_for_process: true
-    timeout: 900  # 15 min timeout, adjust as needed
+    timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
   when: patch_os | default(false) | bool
   register: update_result
   ignore_errors: true
+
+
+- name: Debug update_result variable
+  debug:
+    var: update_result
+  when: patch_os | default(false) | bool
+
+- name: Debug specific parts of update_result variable
+  debug:
+    msg: 
+      - "Return code: {{ update_result.rc }}"
+      - "Stdout: {{ update_result.stdout }}"
+      - "Stderr: {{ update_result.stderr }}"
+  when: patch_os | default(false) | bool
+
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
@@ -172,39 +187,3 @@
   register: inventory_update_result
   when: vmware_inventory_id is defined
   ignore_errors: true
-
-- name: Display initial inventory update result
-  debug:
-    var: inventory_update_result
-
-- name: Wait for inventory update to complete
-  uri:
-    url: "https://{{ awx_tower_url }}/api/v2/inventory_updates/{{ inventory_update_result.id }}/"
-    method: GET
-    user: "{{ awx_username }}"
-    password: "{{ awx_password }}"
-    force_basic_auth: yes
-    validate_certs: no
-    return_content: yes
-  register: job_result
-  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
-  retries: 15
-  delay: 10
-  ignore_errors: true
-
-- name: Display job result details
-  debug:
-    var: job_result
-
-- name: Check inventory update result
-  fail:
-    msg: >
-      Inventory update failed or timed out. 
-      Status: {{ job_result.json.status | default('Unknown') if job_result.json is defined else 'API call failed' }}
-      Error details: {{ job_result.msg | default('No error message') if job_result.failed else 'No error' }}
-  when: job_result is failed or job_result.json is not defined or job_result.json.status != 'successful'
-
-- name: Report successful inventory update
-  debug:
-    msg: "Inventory update completed successfully"
-  when: job_result is success and job_result.json is defined and job_result.json.status == 'successful'
