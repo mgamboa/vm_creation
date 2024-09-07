@@ -67,6 +67,10 @@
   when: vmware_inventory_id is defined
   ignore_errors: true
 
+- name: Display initial inventory update result
+  debug:
+    var: inventory_update_result
+
 - name: Wait for inventory update to complete
   uri:
     url: "https://{{ awx_tower_url }}/api/v2/jobs/{{ inventory_update_result.id }}/"
@@ -80,7 +84,7 @@
   until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
   retries: 40
   delay: 10
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Display job result details
   debug:
@@ -98,4 +102,3 @@
   debug:
     msg: "Inventory update completed successfully"
   when: job_result is success and job_result.json is defined and job_result.json.status == 'successful'
-
