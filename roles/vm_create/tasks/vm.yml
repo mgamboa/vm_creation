@@ -66,33 +66,6 @@
   delegate_to: localhost
   register: facts
 
-- name: Check if system needs updates
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "dnf check-update"
-  delegate_to: localhost
-  register: update_check
-  failed_when: update_check.rc != 0
-  changed_when: "'0' not in update_check.stdout"
-
-- name: Capture stdout and stderr for debugging
-  debug:
-    msg:
-      - "STDOUT: {{ update_check.stdout }}"
-      - "STDERR: {{ update_check.stderr }}"
-      - "Return Code: {{ update_check.rc }}"
-
-
 - name: Patching to latest version OS if updates available
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
