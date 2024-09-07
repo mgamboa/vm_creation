@@ -57,20 +57,17 @@
   set_fact:
     inventories: "{{ lookup('awx.awx.controller_api', 'inventories', host=awx_tower_url, username=awx_username, password=awx_password, verify_ssl=false) }}"
 
-- name: Display inventory information
-  debug:
-    msg: "Inventory Name: {{ item.name }}, ID: {{ item.id }}, Organization: {{ item.organization }}"
-  loop: "{{ inventories.results }}"
-  when: inventories.results is defined
-
-- name: Set fact for Vmware inventory ID
+- name: Create list of inventory IDs
   set_fact:
-    vmware_inventory_id: "{{ item.id }}"
-  loop: "{{ inventories.results }}"
-  when: item.name == 'Vmware'
+    inventory_id_list: "{{ inventories.results | map(attribute='id') | list }}"
 
-- name: Display Vmware inventory ID
+- name: Display all inventory IDs
   debug:
-    var: vmware_inventory_id
-  when: vmware_inventory_id is defined
+    msg: "All Inventory IDs: {{ inventory_id_list }}"
+
+- name: Display individual inventory IDs
+  debug:
+    msg: "Inventory ID: {{ item }}"
+  loop: "{{ inventory_id_list }}"
+
 
