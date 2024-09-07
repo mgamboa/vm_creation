@@ -98,6 +98,8 @@
     vm_shell: /bin/bash
     vm_shell_args: "-c 'while kill -0 {{ update_pid }} 2>/dev/null; do sleep 10; done; echo 1'"
   delegate_to: localhost
+  retries: 2
+  delay: 300
   register: update_completion
   when: patch_os | default(false) | bool
 
