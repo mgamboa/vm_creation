@@ -82,13 +82,16 @@
     vm_shell_args: "dnf check-update"
   delegate_to: localhost
   register: update_check
-  failed_when: update_check.changed and update_check.msg != 100
-  changed_when: update_check.msg != 0 and update_check.msg != 100
+  failed_when: update_check.rc != 0
+  changed_when: "'0' not in update_check.stdout"
 
-- name: Debug update check result
+- name: Capture stdout and stderr for debugging
   debug:
-    var: update_check
-  when: patch_os | default(false) | bool
+    msg:
+      - "STDOUT: {{ update_check.stdout }}"
+      - "STDERR: {{ update_check.stderr }}"
+      - "Return Code: {{ update_check.rc }}"
+
 
 - name: Patching to latest version OS if updates available
   community.vmware.vmware_vm_shell:
