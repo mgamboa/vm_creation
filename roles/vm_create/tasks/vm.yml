@@ -56,6 +56,8 @@
     vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
   delegate_to: localhost
 
+
+
 - name: Wait for VM to get an IP address
   community.vmware.vmware_guest_info:
     hostname: "{{ vcenter_hostname }}"
@@ -69,18 +71,10 @@
   until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
   retries: 10
   delay: 6
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
 
 - name: Set VM IP address fact
   set_fact:
     vm_ip: "{{ vm_info.instance.ipv4 }}"
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
 
 - name: Wait for SSH to become available
   wait_for:
@@ -89,10 +83,6 @@
     delay: 10
     timeout: 300
   delegate_to: localhost
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
 
 - name: Add new VM to in-memory inventory
   add_host:
@@ -101,10 +91,6 @@
     ansible_user: root
     ansible_password: "{{ initial_root_password }}"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
 
 - name: Check for available updates
   dnf:
@@ -112,18 +98,12 @@
   register: dnf_check
   become: yes
   delegate_to: "{{ vm_ip }}"
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
+  when: patch_os | default(false) | bool
 
 - name: Debug available updates
   debug:
     var: dnf_check
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
+  when: patch_os | default(false) | bool
 
 - name: Perform system update
   dnf:
@@ -132,48 +112,22 @@
     update_cache: yes
   when: 
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
     - dnf_check.changes.updated | default([]) | length > 0
-  register: dnf_update
+  register: patching_result
   become: yes
   delegate_to: "{{ vm_ip }}"
 
 - name: Debug update result
   debug:
-    var: dnf_update
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
+    var: patching_result
+  when: patch_os | default(false) | bool
 
-- name: Verify system is up to date
-  dnf:
-    list: updates
-  register: final_update_check
-  become: yes
+- name: Check kernel version
+  command: uname -r
+  register: kernel_version
+  changed_when: false
   delegate_to: "{{ vm_ip }}"
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
-
-- name: Debug final update check
-  debug:
-    var: final_update_check
-  when:
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
-
-- name: Check final patching status
-  fail:
-    msg: "System still needs updates after patching. Updates available: {{ final_update_check.changes.updated | default([]) }}"
-  when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
-    - final_update_check.changes.updated | default([]) | length > 0
+  when: patch_os | default(false) | bool
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
@@ -201,7 +155,7 @@
   when: 
     - patch_os | default(false) | bool
     - patching_result.changed
-    - kernel_version.changed  
+    - kernel_version.changed
 
 - name: Wait for VM power state (powered on)
   community.vmware.vmware_guest_powerstate:
@@ -234,7 +188,7 @@
     - patching_result.changed
     - kernel_version.changed
 
-- name: Wait for VM to get an IP address
+- name: Wait for VM to get an IP address after reboot
   community.vmware.vmware_guest_info:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -243,23 +197,20 @@
     validate_certs: no
     name: "{{ vm_name }}"
   delegate_to: localhost
-  register: vm_info
-  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+  register: vm_info_after_reboot
+  until: vm_info_after_reboot.instance.ipv4 is defined and vm_info_after_reboot.instance.ipv4 != None and vm_info_after_reboot.instance.ipv4 != ""
   retries: 10
   delay: 6
-  when: 
+  when:
     - patch_os | default(false) | bool
     - patching_result.changed
     - kernel_version.changed
 
 - name: Display VM IP address
   debug:
-    msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ipv4 }}"
+    msg: "The IP address of {{ vm_name }} is {{ vm_info_after_reboot.instance.ipv4 }}"
   when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
-    - vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+    - vm_info_after_reboot.instance.ipv4 is defined and vm_info_after_reboot.instance.ipv4 != None and vm_info_after_reboot.instance.ipv4 != ""
 
 
 - name: Update VMware vCenter inventory source
