@@ -114,7 +114,7 @@
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool  
-    - update_result | default(false) |bool
+    - update_result.rc = 1
 
   register: reboot_result
     
