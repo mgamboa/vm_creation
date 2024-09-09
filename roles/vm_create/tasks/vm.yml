@@ -48,6 +48,48 @@
   register: vm_creation_result
 
 
+- name: Apply guest customization for vSphere 8+ with cloud-init (DHCP)
+  vmware.vmware_rest.vcenter_vm_guest_customization:
+    vcenter_hostname: "{{ vcenter_hostname }}"
+    vcenter_username: "{{ vcenter_username }}"
+    vcenter_password: "{{ vcenter_password }}"
+    vcenter_validate_certs: no
+    vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
+    configuration_spec:
+      global_DNS_settings:
+        dns_server_list:
+          - '192.168.2.1'
+        dns_suffix_list:
+          - "{{ domain }}"
+      interfaces:
+          ipv4:
+            type: DHCP  # Specify DHCP for automatic IP assignment
+      cloudinit:
+        metadata: |
+          instance-id: {{ random_hostname }}
+          local-hostname: {{ random_hostname }}
+        userdata: |
+          #cloud-config
+          hostname: {{ random_hostname }}
+          fqdn: {{ random_hostname }}.{{ domain }}
+          manage_etc_hosts: true
+          users:
+            - name: root
+              lock_passwd: false
+              passwd: {{ new_root_password | password_hash('sha512') }}
+          chpasswd: { expire: False }
+          ssh_pwauth: True
+          manage_resolv_conf: true
+          resolv_conf:
+            nameservers: ['192.168.2.1']
+          package_update: true
+          package_upgrade: true
+    state: set
+  when: vsphere_info.about_info.version is version('8.0', '>=')
+
+
+
+
 - name: Apply guest customization for vSphere 8+ with cloud-init
   vmware.vmware_rest.vcenter_vm_guest_customization:
     vcenter_hostname: "{{ vcenter_hostname }}"
