@@ -48,7 +48,7 @@
   register: vm_creation_result
 
 
-- name: Apply guest customization for vSphere 8+ with DHCP
+- name: Apply guest customization for vSphere 8+ with cloud-init
   vmware.vmware_rest.vcenter_vm_guest_customization:
     vcenter_hostname: "{{ vcenter_hostname }}"
     vcenter_username: "{{ vcenter_username }}"
@@ -56,19 +56,18 @@
     vcenter_validate_certs: no
     vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
     configuration_spec:
-      linux_config:
-        domain: "{{ domain }}"
-        hostname: "{{ random_hostname }}"
-    interfaces:
-      - adapter:
-          ipv4:
-            type: DHCP
-    global_DNS_settings:
-      dns_suffix_list: []
-      dns_servers:
-        - 192.168.2.1
+      cloud_config:
+        metadata:
+          instance-id: "{{ random_hostname }}"
+          local-hostname: "{{ random_hostname }}"
+        userdata: |
+          #cloud-config
+          hostname: {{ random_hostname }}
+          fqdn: {{ random_hostname }}.{{ domain }}
     state: set
   when: vsphere_info.about_info.version is version('8.0', '>=')
+
+
 
 - name: Apply guest customization for vSphere < 8
   community.vmware.vmware_guest:
