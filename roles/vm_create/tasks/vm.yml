@@ -48,26 +48,27 @@
   register: vm_creation_result
 
 
-- name: Apply guest customization for vSphere 8+
+- name: Apply guest customization for vSphere 8+ with DHCP
   vmware.vmware_rest.vcenter_vm_guest_customization:
     vcenter_hostname: "{{ vcenter_hostname }}"
     vcenter_username: "{{ vcenter_username }}"
     vcenter_password: "{{ vcenter_password }}"
     vcenter_validate_certs: no
     vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
-    configuration_spec:
-      linux_config:
+    spec:
+      name: "dhcp_customization"
+      linux:
         domain: "{{ domain }}"
-        hostname:  tes01
-        type: FIXED
-    interfaces:
-    - adapter:
-        ipv4:
-          type: DHCP
-    global_DNS_settings:
-      dns_suffix_list: []
-      dns_servers:
-      - 192.168.2.1
+        host_name: "{{ random_hostname }}"
+      global_DNS_settings:
+        dns_suffix_list: []
+        dns_servers:
+        - 192.168.2.1
+      interfaces:
+      - ip_settings:
+          ip_mode: DHCP
+    state: present
+    when: vsphere_info.about_info.version is version('8.0', '=>')
 
 - name: Apply guest customization for vSphere < 8
   community.vmware.vmware_guest:
