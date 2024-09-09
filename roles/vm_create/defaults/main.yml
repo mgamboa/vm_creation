@@ -20,5 +20,5 @@ vm_folder: "/vm/AAP_HOSTS"
 ansible_python_interpreter: "/usr/bin/python3"
 ansible_connection: "local"
 awx_user: "{{ lookup('env', 'AWX_USER') }}"  # This will be set by AWX
-vmware_inventory_id: 2
+vmware_inventory_id: 4
 awx_tower_url: awx-demo-awx.apps.okd.itmco.local
