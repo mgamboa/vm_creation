@@ -62,8 +62,6 @@
     wait_for_process: true
     timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
-  when: patch_os | default(false) | bool
-  register: update_result.changed  | default(false) | bool
   ignore_errors: true
 
 
