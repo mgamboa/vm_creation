@@ -17,6 +17,15 @@
     fqdn: "{{ random_hostname }}.{{ domain }}"
 
 
+- name: Get vSphere version
+  community.vmware.vmware_about_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+  delegate_to: localhost
+  register: vsphere_info
+
 - name: Create a virtual machine with cloud-init and DHCP
   community.vmware.vmware_guest:
     hostname: "{{ vcenter_hostname }}"
@@ -41,7 +50,7 @@
               lock_passwd: false
           chpasswd: 
             list: |
-              root:VMware1!
+              root:{{ new_root_password }}
             expire: false
     networks:
       - name: "{{ vm_network_name }}"
@@ -131,7 +140,7 @@
     vm_shell: /bin/bash
     vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
   delegate_to: localhost
-  when: vm_creation_result is changed
+  when: vm_creation_result is changed and vsphere_info.about_info.version is version('8.0', '<')
 
 - name: Reboot if required
   community.vmware.vmware_guest_powerstate:
