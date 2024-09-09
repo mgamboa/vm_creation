@@ -48,56 +48,25 @@
   register: vm_creation_result
 
 
-- name: Apply guest customization for vSphere 8+ with cloud-init (OS-level only)
-  vmware.vmware_rest.vcenter_vm_guest_customization:
-    vcenter_hostname: "{{ vcenter_hostname }}"
-    vcenter_username: "{{ vcenter_username }}"
-    vcenter_password: "{{ vcenter_password }}"
-    vcenter_validate_certs: no
-    vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
-    configuration_spec:
-      cloudinit:
-        metadata: |
-          instance-id: {{ random_hostname }}
-          local-hostname: {{ random_hostname }}
-        userdata: |
-          #cloud-config
-          hostname: {{ random_hostname }}
-          fqdn: {{ random_hostname }}.{{ domain }}
-          manage_etc_hosts: true
-          manage_resolv_conf: true
-          resolv_conf:
-            nameservers: ['192.168.2.1']
-    state: set
-  delegate_to: localhost
-  when: vsphere_info.about_info.version is version('8.0', '>=')
-
-
-
-
-- name: Apply guest customization for vSphere < 8
-  community.vmware.vmware_guest:
+  - name: Set the hostname of the machine 
+  community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    name: "{{ vm_name }}"
-    template: "{{ 'RL8' if version == '8' else 'RL9' }}"
-    folder: "{{ vm_folder }}"
-    state: "poweredon"
-    customization:
-      domain: "{{ domain }}"
-      hostname: "{{ random_hostname }}"
-    networks:
-      - name: "{{ vm_network_name }}"
-        device_type: vmxnet3
-        connected: true
-        start_connected: true
-    wait_for_ip_address: true
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'hostnamectl set-hostname {{ random_hostname }} --static'"
+    wait_for_process: true
+    timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
-  when: vsphere_info.about_info.version is version('8.0', '<')
+  when: patch_os | default(false) | bool
+  register: update_result.changed  | default(false) | bool
+  ignore_errors: true
+
+
 
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
