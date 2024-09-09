@@ -58,7 +58,7 @@
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
-    vm_shell_args: "-c 'hostnamectl set-hostname {{ random_hostname }} --static'"
+    vm_shell_args: "-c 'hostnamectl set-hostname {{ vm_name }} --static'"
     wait_for_process: true
     timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
@@ -97,14 +97,15 @@
     timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
   when: patch_os | default(false) | bool
-  register: update_result.changed  | default(false) | bool
+  register: update_result  | default(false) | bool
   ignore_errors: true
+  
+
+- name Debug update_result
+    debug: 
+      msg: update_result 
 
 
-- name: Debug update_result variable
-  debug:
-    var: update_result
-  when: patch_os | default(false) | bool
 
 
 - name: Change root password
@@ -119,7 +120,7 @@
     vm_shell: /bin/bash
     vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
   delegate_to: localhost
-  when: vm_creation_result is changed and vsphere_info.about_info.version is version('8.0', '<')
+  
 
 - name: Reboot if required
   community.vmware.vmware_guest_powerstate:
@@ -132,7 +133,7 @@
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool  
-    - update_result.rc = 1
+    - update_result.rc =1 
 
   register: reboot_result
     
