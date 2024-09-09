@@ -101,8 +101,8 @@
   ignore_errors: true
   
 
-- name Debug update_result
-    debug: 
+- name: Debug update_result
+  debug: 
       msg: update_result 
 
 
