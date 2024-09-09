@@ -50,6 +50,9 @@
 
 - name: Apply guest customization for vSphere 8+
   vmware.vmware_rest.vcenter_vm_guest_customization:
+    vcenter_hostname: "{{ vcenter_hostname }}"
+    vcenter_username: "{{ vcenter_username }}"
+    vcenter_password: "{{ vcenter_password }}"
     vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
     configuration_spec:
       linux_config:
