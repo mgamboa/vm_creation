@@ -47,22 +47,23 @@
   delegate_to: localhost
   register: vm_creation_result
 
+
 - name: Apply guest customization for vSphere 8+
   vmware.vmware_rest.vcenter_vm_guest_customization:
     vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
-    vcenter_validate_certs: false
-    hostname: "{{ random_hostname }}"
-    domain: "{{ domain }}"
-    linux_options:
-      domain: "{{ domain }}"
-      host_name: "{{ random_hostname }}"
-    nic_settings:
-      - name: "{{ vm_network_name }}"
-        use_dhcp: true
-    session_timeout: 3600
-  when: 
-    - vm_creation_result is changed
-    - vsphere_info.about_info.version is version('8.0', '>=')
+    configuration_spec:
+      linux_config:
+        domain: "{{ domain }}"
+        hostname:  "{{ random_hostname }}"
+        type: FIXED
+    interfaces:
+    - adapter:
+        ipv4:
+          type: DHCP
+    global_DNS_settings:
+      dns_suffix_list: []
+      dns_servers:
+      - 192.168.2.1
 
 - name: Apply guest customization for vSphere < 8
   community.vmware.vmware_guest:
@@ -86,8 +87,7 @@
         start_connected: true
     wait_for_ip_address: true
   delegate_to: localhost
-  when: 
-    - vsphere_info.about_info.version is version('8.0', '<')
+  when: vsphere_info.about_info.version is version('8.0', '<')
 
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
