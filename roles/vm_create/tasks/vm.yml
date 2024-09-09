@@ -58,7 +58,7 @@
     configuration_spec:
       linux_config:
         domain: "{{ domain }}"
-        hostname:  "{{ random_hostname }}"
+        hostname:  tes01
         type: FIXED
     interfaces:
     - adapter:
