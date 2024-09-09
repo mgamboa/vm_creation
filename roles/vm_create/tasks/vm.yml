@@ -48,7 +48,7 @@
   register: vm_creation_result
 
 
-  - name: Set the hostname of the machine 
+- name: Set the hostname of the machine 
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
