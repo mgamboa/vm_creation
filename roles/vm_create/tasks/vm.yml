@@ -56,7 +56,7 @@
     vcenter_validate_certs: no
     vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
     configuration_spec:
-      cloud_config:
+      CLOUDINIT:
         metadata:
           instance-id: "{{ random_hostname }}"
           local-hostname: "{{ random_hostname }}"
