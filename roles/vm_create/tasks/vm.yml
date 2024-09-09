@@ -97,7 +97,7 @@
     timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
   when: patch_os | default(false) | bool
-  register: update_result  
+  register: updates_result  
   ignore_errors: true
   
 
