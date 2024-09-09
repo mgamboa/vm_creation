@@ -70,7 +70,6 @@
         dns_suffix_list:
           - "{{ domain }}"
       interfaces:
-        - mac_address: "{{ vm_mac_address }}"
           dns_v4:
             - '192.168.2.1'
     state: set
