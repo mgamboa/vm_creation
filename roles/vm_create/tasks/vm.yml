@@ -16,6 +16,43 @@
   ansible.builtin.set_fact:
     fqdn: "{{ random_hostname }}.{{ domain }}"
 
+
+- name: Create a virtual machine with cloud-init and DHCP
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    datacenter: "{{ datacenter_name }}"
+    cluster: "{{ cluster_name }}"
+    name: "{{ vm_name }}"
+    template: "{{ 'RL8' if version == '8' else 'RL9' }}"
+    folder: "{{ vm_folder }}"
+    state: "poweredon"
+    customization:
+      cloud_init:
+        user_data: |
+          #cloud-config
+          hostname: {{ random_hostname }}
+          fqdn: {{ random_hostname }}.{{ domain }}
+          manage_etc_hosts: true
+          users:
+            - name: root
+              lock_passwd: false
+          chpasswd: 
+            list: |
+              root:VMware1!
+            expire: false
+    networks:
+      - name: "{{ vm_network_name }}"
+        device_type: vmxnet3
+        connected: true
+        start_connected: true
+    wait_for_ip_address: true
+  delegate_to: localhost
+  register: vm_creation_result
+  when: vsphere_info.about_info.version is version('8.0', '>=')
+  
 - name: Create a virtual machine with customization and DHCP
   community.vmware.vmware_guest:
     hostname: "{{ vcenter_hostname }}"
@@ -39,6 +76,7 @@
     wait_for_ip_address: true
   delegate_to: localhost
   register: vm_creation_result
+  when: vsphere_info.about_info.version is version('8.0', '<')
 
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
