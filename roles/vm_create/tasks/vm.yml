@@ -59,10 +59,6 @@
     nic_settings:
       - name: "{{ vm_network_name }}"
         use_dhcp: true
-    global_dns_settings:
-      dns_suffixes: 
-        - "{{ dns_suffix }}"
-      dns_servers: "{{ dns_servers }}"
     session_timeout: 3600
   when: 
     - vm_creation_result is changed
@@ -73,13 +69,11 @@
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
-    validate_certs: no
+    validate_certs: false
     name: "{{ vm_name }}"
     customization:
       hostname: "{{ random_hostname }}"
       domain: "{{ domain }}"
-      dns_servers: "{{ dns_servers }}"
-      dns_suffix: "{{ dns_suffix }}"
   when: 
     - vm_creation_result is changed
     - vsphere_info.about_info.version is version('8.0', '<')
