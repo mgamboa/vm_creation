@@ -195,7 +195,7 @@
 
 - name: Update Machine inventory source
   awx.awx.inventory_source_update:
-    name: "{{ awx_inventory_source_name | default('VMware vCenter') }}"
+    name: "{{ awx_inventory_source_name | default('Vcenter Inventory') }}"
     inventory: "{{ vmware_inventory_id }}"
     organization: "{{ awx_organization_name | default('Default') }}"
     tower_host: "{{ awx_tower_url }}"
