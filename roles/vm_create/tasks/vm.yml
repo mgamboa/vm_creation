@@ -59,7 +59,6 @@
       linux_config:
         domain: "{{ domain }}"
         hostname: "{{ random_hostname }}"
-        type: FIXED
     interfaces:
       - adapter:
           ipv4:
