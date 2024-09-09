@@ -48,7 +48,7 @@
   register: vm_creation_result
 
 
-- name: Apply guest customization for vSphere 8+ with cloud-init (DHCP)
+- name: Apply guest customization for vSphere >= 8
   vmware.vmware_rest.vcenter_vm_guest_customization:
     vcenter_hostname: "{{ vcenter_hostname }}"
     vcenter_username: "{{ vcenter_username }}"
@@ -62,8 +62,9 @@
         dns_suffix_list:
           - "{{ domain }}"
       interfaces:
+        - mac_address: "{{ vm_mac_address }}"
           ipv4:
-            type: DHCP  # Specify DHCP for automatic IP assignment
+            type: DHCP  # Use DHCP for automatic IP assignment
       cloudinit:
         metadata: |
           instance-id: {{ random_hostname }}
@@ -85,36 +86,7 @@
           package_update: true
           package_upgrade: true
     state: set
-  when: vsphere_info.about_info.version is version('8.0', '>=')
-
-
-
-
-- name: Apply guest customization for vSphere 8+ with cloud-init
-  vmware.vmware_rest.vcenter_vm_guest_customization:
-    vcenter_hostname: "{{ vcenter_hostname }}"
-    vcenter_username: "{{ vcenter_username }}"
-    vcenter_password: "{{ vcenter_password }}"
-    vcenter_validate_certs: no
-    vm: "{{ vm_creation_result.instance.hw_product_uuid }}"
-    configuration_spec:
-      cloudinit:
-        metadata:
-          instance-id: "{{ random_hostname }}"
-          local-hostname: "{{ random_hostname }}"
-        userdata: |
-          #cloud-config
-          hostname: {{ random_hostname }}
-          fqdn: {{ random_hostname }}.{{ domain }}
-      global_DNS_settings:
-        dns_server_list:
-          - '192.168.2.1'
-        dns_suffix_list:
-          - "{{ domain }}"
-      interfaces:
-          dns_v4:
-            - '192.168.2.1'
-    state: set
+  delegate_to: localhost
   when: vsphere_info.about_info.version is version('8.0', '>=')
 
 
