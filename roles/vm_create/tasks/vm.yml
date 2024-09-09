@@ -69,7 +69,7 @@
       dns_servers:
         - 192.168.2.1
     state: set
-    when: vsphere_info.about_info.version is version('8.0', '=>')
+  when: vsphere_info.about_info.version is version('8.0', '=>')
 
 - name: Apply guest customization for vSphere < 8
   community.vmware.vmware_guest:
