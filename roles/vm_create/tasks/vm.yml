@@ -68,7 +68,7 @@
       dns_suffix_list: []
       dns_servers:
         - 192.168.2.1
-    state: present
+    state: set
     when: vsphere_info.about_info.version is version('8.0', '=>')
 
 - name: Apply guest customization for vSphere < 8
