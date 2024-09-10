@@ -26,7 +26,8 @@
   delegate_to: localhost
   register: vsphere_info
 
-- name: Create a virtual machine
+
+- name: Create a virtual machine 
   community.vmware.vmware_guest:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -35,15 +36,9 @@
     datacenter: "{{ datacenter_name }}"
     cluster: "{{ cluster_name }}"
     name: "{{ vm_name }}"
-    template: "{{ 'RL8' if version == '8' else 'RL9' }}"
+    template: "{{ 'RH8' if version == '8' else 'RH9' }}"
     folder: "{{ vm_folder }}"
     state: "poweredon"
-    networks:
-      - name: "{{ vm_network_name }}"
-        device_type: vmxnet3
-        connected: true
-        start_connected: true
-    wait_for_ip_address: true
   delegate_to: localhost
   register: vm_creation_result
 
