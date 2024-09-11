@@ -15,11 +15,11 @@
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     datacenter: "{{ datacenter_name }}"
-    validate_certs: no
+    validate_certs: false
     name: "{{ vm_name }}"
   delegate_to: localhost
   register: vm_info
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Display VM details
   debug:
@@ -31,10 +31,10 @@
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
-    validate_certs: no
+    validate_certs: false
     name: "{{ vm_name }}"
     state: absent
-    force: yes
+    force: true
   delegate_to: localhost
   when: 
     - vm_info.instance is defined
