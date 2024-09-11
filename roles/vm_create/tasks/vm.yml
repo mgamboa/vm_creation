@@ -36,7 +36,7 @@
     datacenter: "{{ datacenter_name }}"
     cluster: "{{ cluster_name }}"
     name: "{{ vm_name }}"
-    template: "{{ 'RH8' if version == '8' else 'RH9' }}"
+    template: "{{ 'RL8' if version == '8' else 'RL9' }}"
     folder: "{{ vm_folder }}"
     state: "poweredon"
   delegate_to: localhost
