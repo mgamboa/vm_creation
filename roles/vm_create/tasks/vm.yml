@@ -42,6 +42,15 @@
   delegate_to: localhost
   register: vm_creation_result
 
+- name: Wait for VMware tools to become available
+  community.vmware.vmware_guest_tools_wait:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  
 
 - name: Set the hostname of the machine 
   community.vmware.vmware_vm_shell:
