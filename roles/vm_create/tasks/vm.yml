@@ -7,6 +7,26 @@
     state: present
   delegate_to: localhost
 
+- name: Generate random hostname
+  ansible.builtin.set_fact:
+    random_hostname: "vnp{{ lookup('community.general.random_string', min_numeric=2) }}"
+    domain: "itmco.local"
+
+- name: Set FQDN
+  ansible.builtin.set_fact:
+    fqdn: "{{ random_hostname }}.{{ domain }}"
+
+
+- name: Get vSphere version
+  community.vmware.vmware_about_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+  delegate_to: localhost
+  register: vsphere_info
+
+
 - name: Create a virtual machine 
   community.vmware.vmware_guest:
     hostname: "{{ vcenter_hostname }}"
@@ -16,10 +36,39 @@
     datacenter: "{{ datacenter_name }}"
     cluster: "{{ cluster_name }}"
     name: "{{ vm_name }}"
-    template: "{{ 'RH8' if version == '8' else 'RH9' }}"
+    template: "{{ version.split(' - ')[0] }}"
     folder: "{{ vm_folder }}"
     state: "poweredon"
   delegate_to: localhost
+  register: vm_creation_result
+
+- name: Wait for VMware tools to become available
+  community.vmware.vmware_guest_tools_wait:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  
+
+- name: Set the hostname of the machine 
+  community.vmware.vmware_vm_shell:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: no
+    vm_id: "{{ vm_name }}"
+    vm_username: 'root'
+    vm_password: "{{ initial_root_password }}"
+    vm_shell: /bin/bash
+    vm_shell_args: "-c 'hostnamectl set-hostname {{ vm_name }} --static'"
+    wait_for_process: true
+    timeout: 1200  # 20 min timeout, adjust as needed
+  delegate_to: localhost
+  ignore_errors: true
+
+
 
 - name: Get VM MoID
   community.vmware.vmware_vm_info:
@@ -36,51 +85,32 @@
     vm_moid: "{{ vm_info_result.virtual_machines[0].moid }}"
   delegate_to: localhost
 
-- name: Wait for VMware tools to become available by MoID
-  community.vmware.vmware_guest_tools_wait:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    moid: "{{ vm_moid }}"
-  delegate_to: localhost
-  register: facts
 
-- name: Patching to latest version OS
+- name: Perform System updates
   community.vmware.vmware_vm_shell:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
     vm_id: "{{ vm_name }}"
     vm_username: 'root'
     vm_password: "{{ initial_root_password }}"
     vm_shell: /bin/bash
     vm_shell_args: "-c 'dnf update -y'"
+    wait_for_process: true
+    timeout: 1200  # 20 min timeout, adjust as needed
   delegate_to: localhost
   when: patch_os | default(false) | bool
-  register: patching_result
+  register: updates_result  
+  ignore_errors: true
+  
 
-- name: Check kernel version
-  community.vmware.vmware_vm_shell:
-    hostname: "{{ vcenter_hostname }}"
-    username: "{{ vcenter_username }}"
-    password: "{{ vcenter_password }}"
-    validate_certs: no
-    datacenter: "{{ datacenter_name }}"
-    cluster: "{{ cluster_name }}"
-    folder: "{{ vm_folder }}"
-    vm_id: "{{ vm_name }}"
-    vm_username: 'root'
-    vm_password: "{{ initial_root_password }}"
-    vm_shell: /bin/bash
-    vm_shell_args: "-c 'uname -r'"
-  delegate_to: localhost
-  register: kernel_version
-  when: patch_os | default(false) | bool
+- name: Debug update_result
+  debug: 
+      msg: update_result 
+
+
+
 
 - name: Change root password
   community.vmware.vmware_vm_shell:
@@ -95,7 +125,8 @@
     vm_shell_args: "-c 'echo root:{{ new_root_password }} | chpasswd'"
   delegate_to: localhost
   
-- name: Reboot VM if kernel was updated
+
+- name: Reboot if required
   community.vmware.vmware_guest_powerstate:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -105,10 +136,11 @@
     state: reboot-guest
   delegate_to: localhost
   when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
+    - patch_os | default(false) | bool  
+    - update_result.rc =1 
 
+  register: reboot_result
+    
 - name: Wait for VM power state (powered on)
   community.vmware.vmware_guest_powerstate:
     hostname: "{{ vcenter_hostname }}"
@@ -124,8 +156,8 @@
   delay: 10
   when: 
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
+    - reboot_result is changed
+
 
 - name: Wait for VMware tools to become available
   community.vmware.vmware_guest_tools_wait:
@@ -137,10 +169,10 @@
   delegate_to: localhost
   when: 
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
+    - reboot_result is changed
+    
 
-- name: Wait for VM to get an IP address
+- name: Wait for VM to get an IP address after reboot
   community.vmware.vmware_guest_info:
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
@@ -149,39 +181,32 @@
     validate_certs: no
     name: "{{ vm_name }}"
   delegate_to: localhost
-  register: vm_info
-  until: vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+  register: vm_info_after_reboot
+  until: vm_info_after_reboot.instance.ipv4 is defined and vm_info_after_reboot.instance.ipv4 != None and vm_info_after_reboot.instance.ipv4 != ""
   retries: 10
   delay: 6
-  when: 
+  when:
     - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
+    
+    
 
 - name: Display VM IP address
   debug:
-    msg: "The IP address of {{ vm_name }} is {{ vm_info.instance.ipv4 }}
+    msg: "The IP address of {{ vm_name }} is {{ vm_info_after_reboot.instance.ipv4 }}"
   when: 
-    - patch_os | default(false) | bool
-    - patching_result.changed
-    - kernel_version.changed
-    - vm_info.instance.ipv4 is defined and vm_info.instance.ipv4 != None and vm_info.instance.ipv4 != ""
+    - vm_info_after_reboot.instance.ipv4 is defined and vm_info_after_reboot.instance.ipv4 != None and vm_info_after_reboot.instance.ipv4 != ""
 
-- name: Update VMware vCenter inventory source
+
+- name: Update Machine inventory source
   awx.awx.inventory_source_update:
-    name: "VMware vCenter"
-    inventory: "Vmware vsphere"
-    organization: "Tash Corporation"  # The organization name
-    tower_host: "https://awx-awx.apps.okd.itmco.local"  #  AWX host URL
-    tower_username: "{{ awx_username }}"  # Use a variable for the username
-    tower_password: "{{ awx_password }}"  # Use a variable for the password
-    validate_certs: no  # Set to 'no' if using self-signed certs
+    name: "{{ awx_inventory_source_name | default('Vcenter Inventory') }}"
+    inventory: "{{ vmware_inventory_id }}"
+    organization: "{{ awx_organization_name | default('Default') }}"
+    tower_host: "{{ awx_tower_url }}"
+    tower_username: "{{ awx_username }}"
+    tower_password: "{{ awx_password }}"
+    validate_certs: false
   delegate_to: localhost
   register: inventory_update_result
-
-- name: Wait for inventory update to complete
-  awx.awx.job_wait:
-    job_id: "{{ inventory_update_result.id }}"
-  delegate_to: localhost
-  when: inventory_update_result is changed
-
+  when: vmware_inventory_id is defined
+  ignore_errors: true

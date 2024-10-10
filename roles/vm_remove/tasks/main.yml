@@ -15,11 +15,11 @@
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
     datacenter: "{{ datacenter_name }}"
-    validate_certs: no
+    validate_certs: false
     name: "{{ vm_name }}"
   delegate_to: localhost
   register: vm_info
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Display VM details
   debug:
@@ -31,10 +31,10 @@
     hostname: "{{ vcenter_hostname }}"
     username: "{{ vcenter_username }}"
     password: "{{ vcenter_password }}"
-    validate_certs: no
+    validate_certs: false
     name: "{{ vm_name }}"
     state: absent
-    force: yes
+    force: true
   delegate_to: localhost
   when: 
     - vm_info.instance is defined
@@ -52,3 +52,55 @@
         VM removal was not confirmed. VM {{ vm_name }} still exists.
       {% endif %}
 
+
+
+
+- name: Update VMware vCenter inventory source
+  awx.awx.inventory_source_update:
+    name: "{{ awx_inventory_source_name | default('Vcenter Inventory') }}"
+    inventory: "{{ vmware_inventory_id }}"
+    organization: "{{ awx_organization_name | default('Default') }}"
+    tower_host: "{{ awx_tower_url }}"
+    tower_username: "{{ awx_username }}"
+    tower_password: "{{ awx_password }}"
+    validate_certs: false
+  delegate_to: localhost
+  register: inventory_update_result
+  when: vmware_inventory_id is defined
+  ignore_errors: true
+
+- name: Display initial inventory update result
+  debug:
+    var: inventory_update_result
+
+- name: Wait for inventory update to complete
+  uri:
+    url: "https://{{ awx_tower_url }}/api/v2/inventory_updates/{{ inventory_update_result.id }}/"
+    method: GET
+    user: "{{ awx_username }}"
+    password: "{{ awx_password }}"
+    force_basic_auth: yes
+    validate_certs: no
+    return_content: yes
+  register: job_result
+  until: job_result is success and job_result.json is defined and job_result.json.status not in ['pending', 'waiting', 'running']
+  retries: 10
+  delay: 10
+  ignore_errors: true
+
+- name: Display job result details
+  debug:
+    var: job_result
+
+- name: Check inventory update result
+  fail:
+    msg: >
+      Inventory update failed or timed out. 
+      Status: {{ job_result.json.status | default('Unknown') if job_result.json is defined else 'API call failed' }}
+      Error details: {{ job_result.msg | default('No error message') if job_result.failed else 'No error' }}
+  when: job_result is failed or job_result.json is not defined or job_result.json.status != 'successful'
+
+- name: Report successful inventory update
+  debug:
+    msg: "Inventory update completed successfully"
+  when: job_result is success and job_result.json is defined and job_result.json.status == 'successful'
