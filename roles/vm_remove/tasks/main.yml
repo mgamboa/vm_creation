@@ -54,6 +54,7 @@
 
 
 
+
 - name: Update VMware vCenter inventory source
   awx.awx.inventory_source_update:
     name: "{{ awx_inventory_source_name | default('Vcenter Inventory') }}"
