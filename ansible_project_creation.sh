@@ -24,8 +24,11 @@ touch ansible.cfg
 cat << EOF > collections/requirements.yml
 ---
 collections:
-  - name: ansible.posix
-  - name: community.general
+  - community.vmware
+  - community.general
+  - vmware.vmware
+  - vmware.vmware_rest
+  - awx.awx
 EOF
 
 # Create a sample playbook
