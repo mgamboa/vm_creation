@@ -15,13 +15,13 @@ mkdir -p "$PROJECT_NAME"
 cd "$PROJECT_NAME"
 
 # Create subdirectories
-mkdir -p inventories playbooks roles group_vars host_vars files templates
+mkdir -p inventories playbooks roles group_vars host_vars files templates collections
 
 # Create empty ansible.cfg file
 touch ansible.cfg
 
 # Create requirements.yml with some common collections
-cat << EOF > requirements.yml
+cat << EOF > collections/requirements.yml
 ---
 collections:
   - name: ansible.posix
